@@ -1,0 +1,54 @@
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software:$COMMIT_SHA'
+      - '-t'
+      - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software:latest'
+      - '.'
+
+  # Push the container image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software'
+
+  # Deploy container image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'accounts-software'
+      - '--image'
+      - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software:$COMMIT_SHA'
+      - '--region'
+      - 'us-east4'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '512Mi'
+      - '--cpu'
+      - '1'
+      - '--max-instances'
+      - '10'
+      - '--min-instances'
+      - '0'
+      - '--timeout'
+      - '300'
+
+images:
+  - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software:$COMMIT_SHA'
+  - 'us-east4-docker.pkg.dev/$PROJECT_ID/church-accounts/accounts-software:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'N1_HIGHCPU_8'
+
+timeout: 1200s

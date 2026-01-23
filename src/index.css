@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+/* Print styles for PDF generation */
+@media print {
+  body {
+    background-color: white !important;
+  }
+
+  /* Hide navigation, sidebars, and other UI elements */
+  nav,
+  aside,
+  header:not(.print-header),
+  footer:not(.print-footer) {
+    display: none !important;
+  }
+
+  /* Remove page margins for cleaner PDF */
+  @page {
+    margin: 1cm;
+  }
+
+  /* Prevent page breaks inside tables and content blocks */
+  table,
+  .print-keep-together {
+    page-break-inside: avoid;
+  }
+
+  /* Ensure proper spacing */
+  .space-y-6 > * + * {
+    margin-top: 1.5rem !important;
+  }
+
+  /* Remove rounded corners for cleaner print */
+  .rounded-lg {
+    border-radius: 0 !important;
+  }
+}

@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Members collection - only authenticated users can access
+    match /members/{memberId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Income Categories collection - only authenticated users can access
+    match /incomeCategories/{categoryId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Expense Categories collection - only authenticated users can access
+    match /expenseCategories/{categoryId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Income transactions collection - only authenticated users can access
+    match /income/{incomeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Expense transactions collection - only authenticated users can access
+    match /expenses/{expenseId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Expense payees collection - only authenticated users can access
+     match /payees/{payeeId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Opening Balances collection - only authenticated users can access
+    match /openingBalances/{balanceId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Budget collection - only authenticated users can access
+    match /budgets/{budgetId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Bank Statements collection - only authenticated users can access
+    match /bankStatements/{statementId} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

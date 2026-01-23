@@ -1,0 +1,6 @@
+firstname,lastname,address,phone,email,status
+John,Doe,123 Main St New York NY 10001,555-0101,john.doe@example.com,active
+Jane,Smith,456 Oak Ave Los Angeles CA 90001,555-0102,jane.smith@example.com,active
+Bob,Johnson,789 Pine Rd Chicago IL 60601,555-0103,bob.johnson@example.com,inactive
+Alice,Williams,321 Elm St Houston TX 77001,555-0104,alice.williams@example.com,active
+Charlie,Brown,654 Maple Dr Phoenix AZ 85001,555-0105,charlie.brown@example.com,active
