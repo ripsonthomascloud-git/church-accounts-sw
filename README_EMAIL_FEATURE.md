@@ -8,7 +8,7 @@ The Member Contribution Report has been enhanced with professional letter format
 
 ### 1. Letter Format Report
 - Professional letterhead with church logo
-- Header: "St Pauls Marthoma Church"
+- Header: "St. Paul's Marthoma Church"
 - Report run date display
 - Personalized greeting for each member
 - Thank you message

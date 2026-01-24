@@ -24,6 +24,7 @@ const Transactions = () => {
     addTransaction: addIncome,
     updateTransaction: updateIncome,
     deleteTransaction: deleteIncome,
+    refreshTransactions: refreshIncome,
   } = useTransactions('income');
 
   const {
@@ -32,13 +33,16 @@ const Transactions = () => {
     addTransaction: addExpense,
     updateTransaction: updateExpense,
     deleteTransaction: deleteExpense,
+    refreshTransactions: refreshExpenses,
   } = useTransactions('expenses');
 
   const handleAddTransaction = async (transactionData) => {
     if (activeTab === 'income') {
       await addIncome(transactionData);
+      await refreshIncome();
     } else {
       await addExpense(transactionData);
+      await refreshExpenses();
     }
     setShowAddModal(false);
   };

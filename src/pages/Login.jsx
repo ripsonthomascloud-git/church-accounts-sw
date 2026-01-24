@@ -47,7 +47,7 @@ const Login = () => {
             className="h-20 w-20 object-contain mb-4"
           />
           <h2 className="text-center text-3xl font-bold text-gray-900">
-            St Pauls MarthomaChurch Accounting
+            St. Paul's MarthomaChurch Accounting
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Sign in to your account

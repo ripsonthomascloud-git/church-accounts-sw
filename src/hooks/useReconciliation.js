@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { updateDocument } from '../services/firebase';
 import { findMatches } from '../utils/reconciliationMatcher';
 
-export const useReconciliation = (bankStatements, incomeTransactions, expenseTransactions) => {
+export const useReconciliation = (bankStatements, incomeTransactions, expenseTransactions, members = []) => {
   const [reconciling, setReconciling] = useState(false);
   const [error, setError] = useState(null);
 
@@ -117,14 +117,18 @@ export const useReconciliation = (bankStatements, incomeTransactions, expenseTra
   /**
    * Get matches for a bank statement
    * @param {Object} bankStatement - Bank statement to find matches for
-   * @returns {Object} - { exactMatches: [], fuzzyMatches: [], amountMatches: [] }
+   * @param {Array} currentMembers - Current members array (optional, uses hook members if not provided)
+   * @returns {Object} - { exactMatches: [], fuzzyMatches: [], amountMatches: [], commentMatches: [] }
    */
-  const getMatches = (bankStatement) => {
+  const getMatches = (bankStatement, currentMembers = null) => {
     if (!bankStatement) {
-      return { exactMatches: [], fuzzyMatches: [], amountMatches: [] };
+      return { exactMatches: [], fuzzyMatches: [], amountMatches: [], commentMatches: [] };
     }
 
-    return findMatches(bankStatement, incomeTransactions, expenseTransactions);
+    // Use provided members or fall back to hook members
+    const membersToUse = currentMembers !== null ? currentMembers : members;
+
+    return findMatches(bankStatement, incomeTransactions, expenseTransactions, membersToUse);
   };
 
   /**

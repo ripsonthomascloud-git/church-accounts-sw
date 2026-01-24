@@ -112,14 +112,46 @@ const ReconciliationView = ({
     return selectedTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   };
 
-  const handleMultiReconcile = () => {
+  const handleMultiReconcile = async () => {
     if (selectedTransactions.length === 0) return;
-    onReconcile(selectedStatement, selectedTransactions);
+
+    // Get the current index to select next statement after reconciliation
+    const currentIndex = unreconciledStatements.findIndex(s => s.id === selectedStatement.id);
+
+    await onReconcile(selectedStatement, selectedTransactions);
+
+    // After successful reconciliation, select the next unreconciled statement
+    // The unreconciledStatements will be refreshed by parent, so we select by index
+    setTimeout(() => {
+      const nextStatements = bankStatements.filter(s => !s.isReconciled);
+      if (nextStatements.length > 0) {
+        // Try to select the statement at the same index, or the last one if we were at the end
+        const nextIndex = Math.min(currentIndex, nextStatements.length - 1);
+        handleStatementSelectWithReset(nextStatements[nextIndex]);
+      }
+    }, 100);
   };
 
   const handleCreateNewTransaction = () => {
     // Navigate to transactions page
     navigate('/transactions');
+  };
+
+  const handleSingleReconcile = async (statement, transactions) => {
+    // Get the current index to select next statement after reconciliation
+    const currentIndex = unreconciledStatements.findIndex(s => s.id === statement.id);
+
+    await onReconcile(statement, transactions);
+
+    // After successful reconciliation, select the next unreconciled statement
+    setTimeout(() => {
+      const nextStatements = bankStatements.filter(s => !s.isReconciled);
+      if (nextStatements.length > 0) {
+        // Try to select the statement at the same index, or the last one if we were at the end
+        const nextIndex = Math.min(currentIndex, nextStatements.length - 1);
+        handleStatementSelectWithReset(nextStatements[nextIndex]);
+      }
+    }, 100);
   };
 
 
@@ -237,6 +269,11 @@ const ReconciliationView = ({
                         <div className="text-sm text-gray-500 mt-1">
                           {formatDate(statement.postingDate)}
                         </div>
+                        {statement.comment && (
+                          <div className="text-xs text-blue-600 mt-1 italic truncate">
+                            💬 {statement.comment}
+                          </div>
+                        )}
                       </div>
                       <div className="text-right ml-4">
                         <div className={`font-bold ${
@@ -366,6 +403,49 @@ const ReconciliationView = ({
                       {formatAmount(Math.abs(selectedStatement.amount))}
                     </div>
                   </div>
+                </div>
+
+                {/* Selected Transactions List */}
+                <div className="mb-3 space-y-2 max-h-64 overflow-y-auto">
+                  {selectedTransactions.map((transaction) => {
+                    const memberName = getMemberName(transaction);
+                    const isExpense = transaction.transactionType === 'expenses';
+
+                    return (
+                      <div key={transaction.id} className="bg-white border border-purple-200 rounded p-2">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {transaction.category}
+                              {transaction.subCategory && (
+                                <span className="text-gray-600 text-xs ml-1">
+                                  / {transaction.subCategory}
+                                </span>
+                              )}
+                            </div>
+                            {isExpense && transaction.payeeName && (
+                              <div className="text-xs text-purple-600 mt-0.5">
+                                Payee: {transaction.payeeName}
+                              </div>
+                            )}
+                            {memberName && (
+                              <div className="text-xs text-blue-600 mt-0.5">
+                                Member: {memberName}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {formatDate(transaction.date)}
+                            </div>
+                          </div>
+                          <div className="text-right ml-3">
+                            <div className="text-sm font-bold text-gray-900">
+                              {formatAmount(transaction.amount)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {Math.abs(getSelectedTotal() - Math.abs(selectedStatement.amount)) < 0.01 ? (
@@ -504,7 +584,7 @@ const ReconciliationView = ({
                           </div>
                         </div>
                         <Button
-                          onClick={() => onReconcile(selectedStatement, [transaction])}
+                          onClick={() => handleSingleReconcile(selectedStatement, [transaction])}
                           disabled={reconciling}
                           variant="primary"
                           className="w-full"
@@ -529,7 +609,7 @@ const ReconciliationView = ({
                       Potential Matches ({filteredFuzzyMatches.length}{matches.fuzzyMatches.length !== filteredFuzzyMatches.length ? ` of ${matches.fuzzyMatches.length}` : ''})
                   </h4>
                     <p className="text-xs text-yellow-700 mt-1">
-                      Date within ±3 days, amount matches
+                      Same account and amount, any date
                     </p>
                   </div>
                   <div className="divide-y divide-gray-200">
@@ -555,12 +635,22 @@ const ReconciliationView = ({
                                 <div className="text-xs text-gray-500 mt-1">
                                   {transaction.transactionType}
                                 </div>
+                                {transaction.matchScore && transaction.matchScore > 0 && (
+                                  <div className="text-xs text-yellow-600 mt-1 font-medium">
+                                    {transaction.matchScore}% match
+                                  </div>
+                                )}
+                                {transaction.matchedField && (
+                                  <div className="text-xs text-yellow-500 mt-0.5 italic">
+                                    "{transaction.matchedField}"
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
                         </div>
                         <Button
-                          onClick={() => onReconcile(selectedStatement, [transaction])}
+                          onClick={() => handleSingleReconcile(selectedStatement, [transaction])}
                           disabled={reconciling}
                           variant="secondary"
                           className="w-full"
@@ -631,8 +721,74 @@ const ReconciliationView = ({
               ) : null;
             })()}
 
+            {/* Comment-Based Matches */}
+            {!showAllUnreconciled && matches?.commentMatches && matches.commentMatches.length > 0 && selectedStatement?.comment && (() => {
+              const filteredCommentMatches = filterTransactions(matches.commentMatches);
+              return filteredCommentMatches.length > 0 ? (
+                <div className="border border-indigo-200 rounded-lg overflow-hidden">
+                  <div className="bg-indigo-50 px-4 py-2 border-b border-indigo-200">
+                    <h4 className="text-sm font-semibold text-indigo-900">
+                      Comment-Based Matches ({filteredCommentMatches.length}{matches.commentMatches.length !== filteredCommentMatches.length ? ` of ${matches.commentMatches.length}` : ''})
+                    </h4>
+                    <p className="text-xs text-indigo-700 mt-1">
+                      Matched by comment: "{selectedStatement.comment}"
+                    </p>
+                  </div>
+                  <div className="divide-y divide-gray-200">
+                    {filteredCommentMatches.map((transaction) => {
+                      const isSelected = selectedTransactions.some(t => t.id === transaction.id);
+
+                      return (
+                        <div key={transaction.id} className="p-4 bg-white hover:bg-indigo-50">
+                          <div className="flex items-start gap-3 mb-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleTransactionToggle(transaction)}
+                              className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                            />
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start">
+                                {renderTransactionDetails(transaction)}
+                                <div className="text-right ml-4">
+                                  <div className="font-bold text-gray-900">
+                                    {formatAmount(transaction.amount)}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    {transaction.transactionType}
+                                  </div>
+                                  {transaction.matchScore && (
+                                    <div className="text-xs text-indigo-600 mt-1 font-medium">
+                                      {transaction.matchScore}% match
+                                    </div>
+                                  )}
+                                  {transaction.matchedField && (
+                                    <div className="text-xs text-indigo-500 mt-0.5 italic">
+                                      "{transaction.matchedField}"
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            onClick={() => handleSingleReconcile(selectedStatement, [transaction])}
+                            disabled={reconciling}
+                            variant="secondary"
+                            className="w-full"
+                          >
+                            {reconciling ? 'Reconciling...' : 'Review & Reconcile'}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null;
+            })()}
+
             {/* No Matches - Show All Available Transactions for Manual Selection */}
-            {!showAllUnreconciled && matches && matches.exactMatches.length === 0 && matches.fuzzyMatches.length === 0 && (!matches.amountMatches || matches.amountMatches.length === 0) && (() => {
+            {!showAllUnreconciled && matches && matches.exactMatches.length === 0 && matches.fuzzyMatches.length === 0 && (!matches.amountMatches || matches.amountMatches.length === 0) && (!matches.commentMatches || matches.commentMatches.length === 0) && (() => {
               const filteredAvailableTransactions = filterTransactions(availableTransactions);
               return (
                 <div className="border border-gray-200 rounded-lg overflow-hidden">

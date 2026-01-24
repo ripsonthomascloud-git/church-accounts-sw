@@ -19,8 +19,16 @@ const BankStatements = () => {
   const [errorRecords, setErrorRecords] = useState([]);
 
   const { bankStatements, loading, error, refreshBankStatements } = useBankStatements();
-  const { transactions: incomeTransactions, loading: loadingIncome } = useTransactions('income');
-  const { transactions: expenseTransactions, loading: loadingExpenses } = useTransactions('expenses');
+  const {
+    transactions: incomeTransactions,
+    loading: loadingIncome,
+    refreshTransactions: refreshIncomeTransactions
+  } = useTransactions('income');
+  const {
+    transactions: expenseTransactions,
+    loading: loadingExpenses,
+    refreshTransactions: refreshExpenseTransactions
+  } = useTransactions('expenses');
 
   // Fetch members
   useEffect(() => {
@@ -41,9 +49,9 @@ const BankStatements = () => {
     getMatches,
     reconciling,
     error: reconcileError
-  } = useReconciliation(bankStatements, incomeTransactions, expenseTransactions);
+  } = useReconciliation(bankStatements, incomeTransactions, expenseTransactions, members);
 
-  const matches = selectedStatement ? getMatches(selectedStatement) : null;
+  const matches = selectedStatement ? getMatches(selectedStatement, members) : null;
 
   const handleImport = async (file, accountType) => {
     try {
@@ -102,8 +110,10 @@ const BankStatements = () => {
 
       await reconcile(bankStatement, transactionArray);
 
-      // Refresh data to get updated statements
+      // Refresh data to get updated statements and transactions
       const updatedStatements = await refreshBankStatements();
+      await refreshIncomeTransactions();
+      await refreshExpenseTransactions();
 
       const count = transactionArray.length;
       setReconcileSuccess(
@@ -140,8 +150,10 @@ const BankStatements = () => {
 
       await unreconcile(bankStatement);
 
-      // Refresh data
+      // Refresh data to get updated statements and transactions
       await refreshBankStatements();
+      await refreshIncomeTransactions();
+      await refreshExpenseTransactions();
 
       setReconcileSuccess('Successfully unreconciled bank statement.');
 
@@ -349,6 +361,7 @@ const BankStatements = () => {
                   selectedStatementId={selectedStatement?.id}
                   onDelete={handleDelete}
                   onUpdate={refreshBankStatements}
+                  onUnreconcile={handleUnreconcile}
                 />
               )}
             </>

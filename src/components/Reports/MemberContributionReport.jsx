@@ -530,7 +530,7 @@ const MemberContributionReport = () => {
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                St Pauls Marthoma Church
+                St. Paul's Marthoma Church
               </h1>
               <div className="text-sm text-gray-600 mb-6">
                 <p>Contributions as of  {formatDate(new Date(), {
@@ -552,7 +552,7 @@ const MemberContributionReport = () => {
                 Dear {selectedMemberData.member.firstName} {selectedMemberData.member.lastName},
               </p>
               <p className="mb-6 text-gray-700">
-                Thank you for your generous contributions to St Pauls Marthoma Church.
+                Thank you for your generous contributions to St. Paul's Marthoma Church.
                 Your support helps us continue our mission and serve our community.
                 Below is a detailed summary of your contributions{dateFrom && dateTo ? ' for the specified period' : ''}.
               </p>

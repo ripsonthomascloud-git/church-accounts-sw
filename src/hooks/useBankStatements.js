@@ -11,21 +11,15 @@ export const useBankStatements = () => {
       setLoading(true);
       const data = await getDocuments('bankStatements', 'postingDate');
 
-      // Sort by posting date (desc), then by importTimestamp (desc), then by importOrder (asc) to maintain CSV order
+      // Sort by import timestamp (desc - newer imports first), then by importOrder (asc - CSV order)
+      // This maintains the exact order from the CSV file
       const sortedData = data.sort((a, b) => {
-        // First sort by posting date (descending)
-        const dateA = a.postingDate instanceof Date ? a.postingDate : new Date(a.postingDate);
-        const dateB = b.postingDate instanceof Date ? b.postingDate : new Date(b.postingDate);
-        const dateCompare = dateB - dateA;
-
-        if (dateCompare !== 0) return dateCompare;
-
-        // If same date, sort by import timestamp (descending - newer imports first)
+        // First sort by import timestamp (descending - newer imports first)
         const timestampCompare = (b.importTimestamp || 0) - (a.importTimestamp || 0);
 
         if (timestampCompare !== 0) return timestampCompare;
 
-        // If same date and timestamp, sort by import order (ascending - maintain CSV order)
+        // If same timestamp (same import batch), sort by import order (ascending - maintain CSV order)
         return (a.importOrder || 0) - (b.importOrder || 0);
       });
 

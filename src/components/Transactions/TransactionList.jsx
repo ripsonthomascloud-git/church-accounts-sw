@@ -90,6 +90,28 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     }
 
     return true;
+  }).sort((a, b) => {
+    // Sort by transaction date descending first, then by createdAt descending
+    const getTimestamp = (dateField) => {
+      if (!dateField) return 0;
+      if (dateField.toDate) {
+        return dateField.toDate().getTime();
+      }
+      return new Date(dateField).getTime();
+    };
+
+    const dateA = getTimestamp(a.date);
+    const dateB = getTimestamp(b.date);
+
+    // Primary sort: transaction date descending
+    if (dateA !== dateB) {
+      return dateB - dateA;
+    }
+
+    // Secondary sort: createdAt descending
+    const createdAtA = getTimestamp(a.createdAt);
+    const createdAtB = getTimestamp(b.createdAt);
+    return createdAtB - createdAtA;
   });
 
   const handleEditClick = (transaction) => {
@@ -97,6 +119,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     setEditFormData({
       amount: transaction.amount,
       category: transaction.category,
+      subCategory: transaction.subCategory || '',
       description: transaction.description || '',
       date: transaction.date?.toDate ? transaction.date.toDate().toISOString().split('T')[0] :
             transaction.date ? new Date(transaction.date).toISOString().split('T')[0] : '',
@@ -273,6 +296,9 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                     Category
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subcategory
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -300,6 +326,9 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {transaction.category}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {transaction.subCategory || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                       {transaction.description || '-'}
@@ -421,7 +450,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                 name="category"
                 required
                 value={editFormData.category || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
+                onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value, subCategory: '' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select a category</option>
@@ -440,6 +469,20 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             )}
+          </div>
+
+          <div>
+            <label htmlFor="subCategory" className="block text-sm font-medium text-gray-700 mb-1">
+              Subcategory
+            </label>
+            <input
+              type="text"
+              id="subCategory"
+              name="subCategory"
+              value={editFormData.subCategory || ''}
+              onChange={(e) => setEditFormData({ ...editFormData, subCategory: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           <div>
@@ -470,6 +513,63 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {type === 'income' ? (
+            <div>
+              <label htmlFor="member" className="block text-sm font-medium text-gray-700 mb-1">
+                Member
+              </label>
+              {members.length > 0 ? (
+                <select
+                  id="member"
+                  name="member"
+                  value={editFormData.memberId || ''}
+                  onChange={(e) => {
+                    const selectedMemberId = e.target.value;
+                    const selectedMember = members.find(m => m.id === selectedMemberId);
+                    setEditFormData({
+                      ...editFormData,
+                      memberId: selectedMemberId,
+                      memberName: selectedMember ? `${selectedMember.firstName} ${selectedMember.lastName}` : ''
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select a member</option>
+                  {members.map(member => (
+                    <option key={member.id} value={member.id}>
+                      {member.firstName} {member.lastName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  id="memberName"
+                  name="memberName"
+                  value={editFormData.memberName || ''}
+                  onChange={(e) => setEditFormData({ ...editFormData, memberName: e.target.value })}
+                  placeholder="Enter member name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="payeeName" className="block text-sm font-medium text-gray-700 mb-1">
+                Payee
+              </label>
+              <input
+                type="text"
+                id="payeeName"
+                name="payeeName"
+                value={editFormData.payeeName || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, payeeName: e.target.value })}
+                placeholder="Enter payee name"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
 
           {editingTransaction?.isReconciled && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
