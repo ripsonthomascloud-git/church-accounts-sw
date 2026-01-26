@@ -414,12 +414,14 @@ export const findMatches = (bankStatement, incomeTransactions, expenseTransactio
 export const getReconciliationStats = (bankStatements) => {
   const total = bankStatements.length;
   const reconciled = bankStatements.filter(s => s.isReconciled).length;
-  const unreconciled = total - reconciled;
+  const excluded = bankStatements.filter(s => s.isExcluded).length;
+  const unreconciled = total - reconciled - excluded;
 
   return {
     total,
     reconciled,
     unreconciled,
-    percentReconciled: total > 0 ? Math.round((reconciled / total) * 100) : 0
+    excluded,
+    percentReconciled: (total - excluded) > 0 ? Math.round((reconciled / (total - excluded)) * 100) : 0
   };
 };

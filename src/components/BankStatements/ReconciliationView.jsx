@@ -37,10 +37,26 @@ const ReconciliationView = ({
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
+
+    let jsDate;
     if (date.toDate) {
-      return date.toDate().toLocaleDateString();
+      // Firestore timestamp
+      jsDate = date.toDate();
+    } else if (date instanceof Date) {
+      jsDate = date;
+    } else {
+      jsDate = new Date(date);
     }
-    return new Date(date).toLocaleDateString();
+
+    // Extract date components to avoid timezone issues
+    const year = jsDate.getFullYear();
+    const month = jsDate.getMonth();
+    const day = jsDate.getDate();
+
+    // Create a new date at local midnight
+    const localDate = new Date(year, month, day);
+
+    return localDate.toLocaleDateString();
   };
 
   const formatAmount = (amount) => {
@@ -123,7 +139,7 @@ const ReconciliationView = ({
     // After successful reconciliation, select the next unreconciled statement
     // The unreconciledStatements will be refreshed by parent, so we select by index
     setTimeout(() => {
-      const nextStatements = bankStatements.filter(s => !s.isReconciled);
+      const nextStatements = bankStatements.filter(s => !s.isReconciled && !s.isExcluded);
       if (nextStatements.length > 0) {
         // Try to select the statement at the same index, or the last one if we were at the end
         const nextIndex = Math.min(currentIndex, nextStatements.length - 1);
@@ -145,7 +161,7 @@ const ReconciliationView = ({
 
     // After successful reconciliation, select the next unreconciled statement
     setTimeout(() => {
-      const nextStatements = bankStatements.filter(s => !s.isReconciled);
+      const nextStatements = bankStatements.filter(s => !s.isReconciled && !s.isExcluded);
       if (nextStatements.length > 0) {
         // Try to select the statement at the same index, or the last one if we were at the end
         const nextIndex = Math.min(currentIndex, nextStatements.length - 1);
@@ -162,7 +178,7 @@ const ReconciliationView = ({
     return true;
   });
 
-  const unreconciledStatements = filteredStatements.filter(s => !s.isReconciled);
+  const unreconciledStatements = filteredStatements.filter(s => !s.isReconciled && !s.isExcluded);
 
   // Get all available transactions for manual selection
   const getAllAvailableTransactions = () => {

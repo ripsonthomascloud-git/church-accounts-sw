@@ -21,10 +21,26 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
+
+    let jsDate;
     if (date.toDate) {
-      return date.toDate().toLocaleDateString();
+      // Firestore timestamp
+      jsDate = date.toDate();
+    } else if (date instanceof Date) {
+      jsDate = date;
+    } else {
+      jsDate = new Date(date);
     }
-    return new Date(date).toLocaleDateString();
+
+    // Extract date components to avoid timezone issues
+    const year = jsDate.getFullYear();
+    const month = jsDate.getMonth();
+    const day = jsDate.getDate();
+
+    // Create a new date at local midnight
+    const localDate = new Date(year, month, day);
+
+    return localDate.toLocaleDateString();
   };
 
   const formatAmount = (amount) => {
@@ -189,15 +205,30 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
       }
     }
 
+    // Convert date to local YYYY-MM-DD format without timezone issues
+    let jsDate;
+    if (statement.postingDate?.toDate) {
+      jsDate = statement.postingDate.toDate();
+    } else {
+      jsDate = new Date(statement.postingDate);
+    }
+
+    // Extract date components to avoid timezone issues
+    const year = jsDate.getFullYear();
+    const month = String(jsDate.getMonth() + 1).padStart(2, '0');
+    const day = String(jsDate.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`;
+
     setEditingStatementId(statement.id);
     setEditingValues({
       description: statement.description,
       amount: statement.amount,
       type: statement.type,
-      postingDate: statement.postingDate?.toDate ? statement.postingDate.toDate().toISOString().split('T')[0] : new Date(statement.postingDate).toISOString().split('T')[0],
+      postingDate: dateString,
       checkOrSlipNumber: statement.checkOrSlipNumber || '',
       balance: statement.balance,
-      accountType: statement.accountType
+      accountType: statement.accountType,
+      isExcluded: statement.isExcluded || false
     });
   };
 
@@ -239,15 +270,24 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
         }
       }
 
+      // Fix timezone issue: Parse date string to create local date
+      const dateComponents = editingValues.postingDate.split('-');
+      const localDate = new Date(
+        parseInt(dateComponents[0]), // year
+        parseInt(dateComponents[1]) - 1, // month (0-indexed)
+        parseInt(dateComponents[2]) // day
+      );
+
       // Update bank statement with new values and clear reconciliation data
       await updateDocument('bankStatements', statement.id, {
         description: editingValues.description,
         amount: parseFloat(editingValues.amount),
         type: editingValues.type,
-        postingDate: new Date(editingValues.postingDate),
+        postingDate: localDate,
         checkOrSlipNumber: editingValues.checkOrSlipNumber,
         balance: parseFloat(editingValues.balance),
         accountType: editingValues.accountType,
+        isExcluded: editingValues.isExcluded || false,
         isReconciled: false,
         reconciledTransactionId: null,
         reconciledTransactionType: null,
@@ -323,7 +363,10 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
     if (filterStatus === 'reconciled' && !statement.isReconciled) {
       return false;
     }
-    if (filterStatus === 'unreconciled' && statement.isReconciled) {
+    if (filterStatus === 'unreconciled' && (statement.isReconciled || statement.isExcluded)) {
+      return false;
+    }
+    if (filterStatus === 'excluded' && !statement.isExcluded) {
       return false;
     }
 
@@ -402,6 +445,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
               <option value="">All Statuses</option>
               <option value="reconciled">Reconciled</option>
               <option value="unreconciled">Unreconciled</option>
+              <option value="excluded">Excluded</option>
             </select>
           </div>
 
@@ -511,6 +555,9 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
                     Comment
                   </th>
                   <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Excluded
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -534,7 +581,11 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
                       />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      {statement.isReconciled ? (
+                      {statement.isExcluded ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                          − Excluded
+                        </span>
+                      ) : statement.isReconciled ? (
                         <span
                           onClick={(e) => handleViewReconciled(statement, e)}
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 transition-colors"
@@ -680,6 +731,23 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
                         <span className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block">
                           {statement.comment || 'Click to add comment...'}
                         </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                      {editingStatementId === statement.id ? (
+                        <input
+                          type="checkbox"
+                          checked={editingValues.isExcluded || false}
+                          onChange={(e) => handleEditChange('isExcluded', e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        statement.isExcluded ? (
+                          <span className="text-gray-600">✓</span>
+                        ) : (
+                          <span className="text-gray-300">−</span>
+                        )
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-center">

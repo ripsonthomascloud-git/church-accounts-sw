@@ -18,6 +18,30 @@ const BankStatements = () => {
   const [members, setMembers] = useState([]);
   const [errorRecords, setErrorRecords] = useState([]);
 
+  // Format date without timezone issues
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+
+    let jsDate;
+    if (date.toDate) {
+      jsDate = date.toDate();
+    } else if (date instanceof Date) {
+      jsDate = date;
+    } else {
+      jsDate = new Date(date);
+    }
+
+    // Extract date components to avoid timezone issues
+    const year = jsDate.getFullYear();
+    const month = jsDate.getMonth();
+    const day = jsDate.getDate();
+
+    // Create a new date at local midnight
+    const localDate = new Date(year, month, day);
+
+    return localDate.toLocaleDateString();
+  };
+
   const { bankStatements, loading, error, refreshBankStatements } = useBankStatements();
   const {
     transactions: incomeTransactions,
@@ -102,7 +126,7 @@ const BankStatements = () => {
       const transactionArray = Array.isArray(transactions) ? transactions : [transactions];
 
       // Find the next unreconciled statement ID before reconciling
-      const unreconciledStatements = bankStatements.filter(s => !s.isReconciled);
+      const unreconciledStatements = bankStatements.filter(s => !s.isReconciled && !s.isExcluded);
       const currentIndex = unreconciledStatements.findIndex(s => s.id === bankStatement.id);
       const nextStatementId = currentIndex >= 0 && currentIndex < unreconciledStatements.length - 1
         ? unreconciledStatements[currentIndex + 1].id
@@ -198,7 +222,7 @@ const BankStatements = () => {
 
       {/* Statistics Cards */}
       {!loading && bankStatements.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-white rounded-lg shadow p-4">
             <div className="text-sm text-gray-600 mb-1">Total Statements</div>
             <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
@@ -210,6 +234,10 @@ const BankStatements = () => {
           <div className="bg-red-50 rounded-lg shadow p-4 border border-red-200">
             <div className="text-sm text-red-700 mb-1">Unreconciled</div>
             <div className="text-2xl font-bold text-red-600">{stats.unreconciled}</div>
+          </div>
+          <div className="bg-gray-50 rounded-lg shadow p-4 border border-gray-200">
+            <div className="text-sm text-gray-700 mb-1">Excluded</div>
+            <div className="text-2xl font-bold text-gray-600">{stats.excluded || 0}</div>
           </div>
           <div className="bg-blue-50 rounded-lg shadow p-4 border border-blue-200">
             <div className="text-sm text-blue-700 mb-1">Progress</div>
@@ -253,7 +281,7 @@ const BankStatements = () => {
                           {record.rowNumber}
                         </td>
                         <td className="px-2 py-1 text-red-900 whitespace-nowrap">
-                          {record.postingDate ? new Date(record.postingDate).toLocaleDateString() : 'N/A'}
+                          {formatDate(record.postingDate)}
                         </td>
                         <td className="px-2 py-1 text-red-900 max-w-xs truncate">
                           {record.description || 'N/A'}
