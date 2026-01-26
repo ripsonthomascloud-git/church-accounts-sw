@@ -73,13 +73,13 @@ const Categories = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Categories</h1>
         <div className="flex space-x-3">
-          <Button
+          {/* <Button
             onClick={handleSeedCategories}
             disabled={seeding}
             variant="success"
           >
             {seeding ? 'Initializing...' : 'Initialize Default Categories'}
-          </Button>
+          </Button> */}
           <Button onClick={() => setShowAddModal(true)}>Add New Category</Button>
         </div>
       </div>
