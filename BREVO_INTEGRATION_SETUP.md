@@ -79,7 +79,7 @@ When deploying, you'll set these as secrets:
 ```bash
 # Set environment variables for production
 firebase functions:secrets:set BREVO_API_KEY
-# When prompted, paste: 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
+# When prompted, paste: xkeysib-<>
 
 firebase functions:secrets:set SENDER_EMAIL
 # When prompted, enter: accounts@stpaulsmtcdallas.org
@@ -90,7 +90,7 @@ firebase functions:secrets:set SENDER_NAME
 
 **Alternatively**, you can set them in one command each:
 ```bash
-echo "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" | firebase functions:secrets:set BREVO_API_KEY
+echo "xkeysib-<>" | firebase functions:secrets:set BREVO_API_KEY
 echo "accounts@stpaulsmtcdallas.org" | firebase functions:secrets:set SENDER_EMAIL
 echo "St. Paul's Marthoma Church" | firebase functions:secrets:set SENDER_NAME
 ```
