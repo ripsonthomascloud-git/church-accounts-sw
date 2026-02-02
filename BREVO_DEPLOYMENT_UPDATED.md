@@ -20,7 +20,7 @@ The code has been updated to use **Firebase Functions v2 environment parameters*
 
 ### 3. **Your Credentials** (Already Configured)
 ```
-BREVO_API_KEY: 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
+BREVO_API_KEY: xkeysib-<>
 SENDER_EMAIL: accounts@stpaulsmtcdallas.org
 SENDER_NAME: St. Paul's Mar Thoma Church
 ```
@@ -46,7 +46,7 @@ firebase emulators:start
 cd functions && npm install && cd ..
 
 # 2. Set production secrets (one-time setup)
-echo "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" | firebase functions:secrets:set BREVO_API_KEY
+echo "xkeysib-<>" | firebase functions:secrets:set BREVO_API_KEY
 echo "accounts@stpaulsmtcdallas.org" | firebase functions:secrets:set SENDER_EMAIL
 echo "St. Paul's Marthoma Church" | firebase functions:secrets:set SENDER_NAME
 
