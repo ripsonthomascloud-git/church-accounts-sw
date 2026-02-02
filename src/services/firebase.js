@@ -21,7 +21,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-const functions = getFunctions(app);
+const functions = getFunctions(app, 'us-east4');
 
 // Generic CRUD operations
 export const addDocument = async (collectionName, data) => {

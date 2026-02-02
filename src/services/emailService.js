@@ -43,13 +43,17 @@ const blobToBase64 = (blob) => {
   });
 };
 
-// Send email function
-// IMPORTANT: Before this works, you must:
-// 1. Set up Firebase Cloud Functions (see EMAIL_INTEGRATION_GUIDE.md)
-// 2. Deploy the sendContributionEmail cloud function
-// 3. Change TESTING_MODE to false below
+// Send email function via Brevo API (Firebase Cloud Function)
+// IMPORTANT: Before this works in production, you must:
+// 1. Install dependencies: cd functions && npm install
+// 2. Set environment secrets in Firebase:
+//    echo "YOUR_KEY" | firebase functions:secrets:set BREVO_API_KEY
+//    echo "YOUR_EMAIL" | firebase functions:secrets:set SENDER_EMAIL
+//    echo "Church Name" | firebase functions:secrets:set SENDER_NAME
+// 3. Deploy the cloud function: firebase deploy --only functions
+// 4. See BREVO_QUICK_DEPLOY.md for complete instructions
 
-const TESTING_MODE = true; // Set to false after deploying cloud functions
+const TESTING_MODE = false; // Set to false for production with Brevo API
 
 export const sendContributionEmail = async (memberEmail, pdfBlob, memberName, reportPeriod) => {
   if (TESTING_MODE) {

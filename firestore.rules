@@ -52,5 +52,15 @@ service cloud.firestore {
     match /bankStatements/{statementId} {
       allow read, write: if isAuthenticated();
     }
+
+    // Email Logs collection - only authenticated users can access
+    match /emailLogs/{logId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Scheduled Emails collection - only authenticated users can access
+    match /scheduledEmails/{scheduleId} {
+      allow read, write: if isAuthenticated();
+    }
   }
 }

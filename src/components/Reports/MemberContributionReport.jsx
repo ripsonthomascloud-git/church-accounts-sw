@@ -36,7 +36,19 @@ const MemberContributionReport = () => {
     );
 
     return incomeTransactions.filter(t => {
-      const dateMatch = (!dateFrom || t.date >= dateFrom) && (!dateTo || t.date <= dateTo);
+      // Normalize transaction date to YYYY-MM-DD format for comparison
+      let transactionDate;
+      if (t.date && t.date.seconds) {
+        // Firestore Timestamp
+        transactionDate = new Date(t.date.seconds * 1000).toISOString().split('T')[0];
+      } else if (t.date) {
+        // Regular date string or Date object
+        transactionDate = new Date(t.date).toISOString().split('T')[0];
+      } else {
+        return false;
+      }
+
+      const dateMatch = (!dateFrom || transactionDate >= dateFrom) && (!dateTo || transactionDate <= dateTo);
       return dateMatch && (contributionCategoryNames.has(t.category) || contributionCategoryNames.has(t.subCategory));
     });
   }, [incomeTransactions, incomeCategories, dateFrom, dateTo]);
@@ -184,31 +196,34 @@ const MemberContributionReport = () => {
     setShowConsolidated(false);
   };
 
-  const handleDownloadPDF = async () => {
+  const handleDownloadPDF = async (downloadLocally = true) => {
     if (!letterRef.current) return;
 
     try {
       const canvas = await html2canvas(letterRef.current, {
-        scale: 2,
+        scale: 1.5,
         logging: false,
         useCORS: true,
       });
 
-      const imgData = canvas.toDataURL('image/png');
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
+        compress: true,
       });
 
       const imgWidth = 210; // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
 
-      const member = members.find(m => m.id === selectedMemberId);
-      const fileName = `Contribution_Report_${member?.firstName}_${member?.lastName}_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
+      if (downloadLocally) {
+        const member = members.find(m => m.id === selectedMemberId);
+        const fileName = `Contribution_Report_${member?.firstName}_${member?.lastName}_${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(fileName);
+      }
 
       return pdf.output('blob');
     } catch (error) {
@@ -233,10 +248,10 @@ const MemberContributionReport = () => {
     setEmailStatus(null);
 
     try {
-      const pdfBlob = await handleDownloadPDF();
+      const pdfBlob = await handleDownloadPDF(false);
       const reportPeriod = dateFrom && dateTo
         ? `${formatDate(dateFrom)} - ${formatDate(dateTo)}`
-        : 'All time';
+        : new Date().getFullYear().toString();
 
       await sendContributionEmail(
         member.email,
@@ -310,10 +325,10 @@ const MemberContributionReport = () => {
         setSelectedMemberId(member.id);
         await new Promise(resolve => setTimeout(resolve, 100)); // Wait for render
 
-        const pdfBlob = await handleDownloadPDF();
+        const pdfBlob = await handleDownloadPDF(false);
         const reportPeriod = dateFrom && dateTo
           ? `${formatDate(dateFrom)} - ${formatDate(dateTo)}`
-          : 'All time';
+          : new Date().getFullYear().toString();
 
         await sendContributionEmail(
           member.email,
@@ -473,13 +488,25 @@ const MemberContributionReport = () => {
                 <Button onClick={handleDownloadPDF} variant="secondary">
                   Download PDF
                 </Button>
-                <Button
-                  onClick={handleSendEmail}
-                  variant="primary"
-                  disabled={isSendingEmail}
-                >
-                  {isSendingEmail ? 'Sending...' : 'Send Email'}
-                </Button>
+                <div className="flex flex-col gap-1">
+                  <Button
+                    onClick={handleSendEmail}
+                    variant="primary"
+                    disabled={isSendingEmail}
+                  >
+                    {isSendingEmail ? 'Sending...' : 'Send Email'}
+                  </Button>
+                  {selectedMemberData?.member?.email && (
+                    <span className="text-xs text-gray-600">
+                      To: {selectedMemberData.member.email}
+                    </span>
+                  )}
+                  {selectedMemberData?.member && !selectedMemberData.member.email && (
+                    <span className="text-xs text-red-600">
+                      No email address
+                    </span>
+                  )}
+                </div>
               </>
             )}
             {showConsolidated && (
@@ -530,7 +557,7 @@ const MemberContributionReport = () => {
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                St. Paul's Marthoma Church
+                St. Paul's Mar Thoma Church
               </h1>
               <div className="text-sm text-gray-600 mb-6">
                 <p>Contributions as of  {formatDate(new Date(), {
@@ -566,6 +593,7 @@ const MemberContributionReport = () => {
                   <tr className="bg-gray-100 border-b-2 border-gray-300">
                     <th className="text-left py-3 px-4 font-semibold">Date</th>
                     <th className="text-left py-3 px-4 font-semibold">Category</th>
+                    <th className="text-left py-3 px-4 font-semibold">Sub Category</th>
                     <th className="text-left py-3 px-4 font-semibold">Description</th>
                     <th className="text-right py-3 px-4 font-semibold">Amount</th>
                   </tr>
@@ -577,6 +605,7 @@ const MemberContributionReport = () => {
                         {formatDate(transaction.date)}
                       </td>
                       <td className="py-2 px-4">{transaction.category || 'Uncategorized'}</td>
+                      <td className="py-2 px-4">{transaction.subCategory || '-'}</td>
                       <td className="py-2 px-4">{transaction.description || '-'}</td>
                       <td className="text-right py-2 px-4">{formatCurrency(transaction.amount)}</td>
                     </tr>
@@ -584,7 +613,7 @@ const MemberContributionReport = () => {
                 </tbody>
                 <tfoot>
                   <tr className="border-t-2 border-gray-400 bg-gray-50">
-                    <td colSpan="3" className="py-3 px-4 font-bold text-lg">Grand Total</td>
+                    <td colSpan="4" className="py-3 px-4 font-bold text-lg">Grand Total</td>
                     <td className="text-right py-3 px-4 font-bold text-lg">
                       {formatCurrency(selectedMemberData.total)}
                     </td>
