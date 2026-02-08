@@ -5,7 +5,14 @@
       "Bash(npm run dev:*)",
       "Bash(firebase deploy:*)",
       "Bash(npm run lint)",
-      "Bash(firebase functions:delete:*)"
+      "Bash(firebase functions:delete:*)",
+      "Bash(firebase functions:log:*)",
+      "Bash(firebase functions:secrets:set:*)",
+      "Bash(firebase functions:secrets:access:*)",
+      "Bash(gcloud secrets versions list:*)",
+      "Bash(firebase functions:secrets:destroy:*)",
+      "Bash(firebase functions:secrets:get:*)",
+      "Bash(gcloud functions logs read:*)"
     ]
   }
 }

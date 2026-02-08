@@ -6,6 +6,7 @@ const Sidebar = () => {
   const menuItems = [
     { path: '/', label: 'Dashboard', icon: '📊' },
     { path: '/members', label: 'Members', icon: '👥' },
+    { path: '/parish-directory', label: 'Parish Directory', icon: '📖' },
     { path: '/payees', label: 'Payee Information', icon: '🏢' },
     { path: '/categories', label: 'Categories', icon: '📁' },
     { path: '/budget', label: 'Budget', icon: '💼' },

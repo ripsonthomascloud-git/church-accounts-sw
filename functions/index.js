@@ -10,6 +10,12 @@ const {onCall} = require("firebase-functions/v2/https");
 const {defineString} = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const brevo = require("@getbrevo/brevo");
+const admin = require("firebase-admin");
+const https = require("https");
+const http = require("http");
+
+// Initialize Firebase Admin
+admin.initializeApp();
 
 // Define environment parameters (replaces deprecated functions.config())
 const BREVO_API_KEY = defineString("BREVO_API_KEY");
@@ -111,7 +117,7 @@ exports.sendContributionEmail = onCall(
           </div>
           <div class="footer">
             <p>&copy; ${new Date().getFullYear()} St. Paul's Mar Thoma Church. All rights reserved.</p>
-            <p>This is an automated email. Please do not reply to this message.</p>
+            <p>This is an automated email. You can reply to this email if any questions.</p>
           </div>
         </body>
       </html>
@@ -162,6 +168,9 @@ exports.sendContributionEmail = onCall(
       error: error.message,
       statusCode: error.statusCode,
       response: error.response?.text,
+      responseBody: error.response?.body,
+      errorBody: error.body,
+      fullError: JSON.stringify(error, null, 2),
       memberEmail
     });
 
@@ -174,3 +183,175 @@ exports.sendContributionEmail = onCall(
   }
   }
 );
+
+/**
+ * Cloud Function to download image from URL and upload to Firebase Storage
+ * This bypasses CORS restrictions by downloading server-side
+ *
+ * @param {Object} data - The request data
+ * @param {string} data.imageUrl - Image URL to download
+ * @param {string} data.familyName - Family name for file naming
+ *
+ * @returns {Object} Result object with success status and storageUrl
+ */
+exports.uploadImageFromUrl = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    const { imageUrl, familyName } = request.data;
+
+    // Validate required parameters
+    if (!imageUrl || !familyName) {
+      logger.error("Missing required parameters", { imageUrl, familyName });
+      throw new Error("imageUrl and familyName are required");
+    }
+
+    // Verify user is authenticated
+    if (!request.auth) {
+      throw new Error("Unauthorized - user must be authenticated");
+    }
+
+    logger.info("Starting image upload", { imageUrl, familyName });
+
+    try {
+      // Download image from URL
+      logger.info("Attempting to download image", { imageUrl });
+      const imageBuffer = await downloadImage(imageUrl);
+
+      logger.info("Image downloaded successfully", {
+        familyName,
+        size: imageBuffer.length,
+        type: typeof imageBuffer
+      });
+
+      // Create safe filename
+      const safeFileName = familyName
+        .replace(/[^a-zA-Z0-9]/g, '_')
+        .toLowerCase()
+        .substring(0, 50);
+
+      const timestamp = Date.now();
+      const fileName = `parish-directory/${safeFileName}_${timestamp}.jpg`;
+
+      // Upload to Firebase Storage
+      // Try default bucket first, fall back to explicit name
+      let bucket;
+      let bucketName;
+
+      try {
+        bucket = admin.storage().bucket();
+        bucketName = bucket.name;
+        logger.info("Using default bucket", { bucketName });
+      } catch (err) {
+        logger.error("Failed to get default bucket, trying explicit name", { error: err.message });
+        bucketName = 'accounting-software-6dc8c.appspot.com';
+        bucket = admin.storage().bucket(bucketName);
+        logger.info("Using explicit bucket", { bucketName });
+      }
+
+      const file = bucket.file(fileName);
+
+      logger.info("Uploading to storage", { bucketName, fileName });
+
+      await file.save(imageBuffer, {
+        metadata: {
+          contentType: 'image/jpeg',
+          cacheControl: 'public, max-age=31536000',
+        },
+      });
+
+      logger.info("File saved, making public");
+
+      // Make file publicly readable
+      await file.makePublic();
+
+      // Get public URL
+      const publicUrl = `https://storage.googleapis.com/${bucketName}/${fileName}`;
+
+      logger.info("Image uploaded successfully", {
+        familyName,
+        publicUrl
+      });
+
+      return {
+        success: true,
+        storageUrl: publicUrl,
+        fileName: fileName
+      };
+
+    } catch (error) {
+      logger.error("Error uploading image", {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        statusCode: error.statusCode,
+        familyName,
+        imageUrl,
+        fullError: JSON.stringify(error, null, 2)
+      });
+
+      // Return more detailed error information
+      throw new Error(`Failed to upload image: ${error.message} (${error.code || 'UNKNOWN'})`);
+    }
+  }
+);
+
+/**
+ * Helper function to download image from URL
+ * @param {string} url - Image URL
+ * @returns {Promise<Buffer>} - Image buffer
+ */
+async function downloadImage(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+
+    // Add headers to mimic browser request (helps with Google Drive)
+    const options = new URL(url);
+    const requestOptions = {
+      hostname: options.hostname,
+      path: options.pathname + options.search,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }
+    };
+
+    logger.info("Downloading image with options", { url, hostname: options.hostname });
+
+    protocol.get(requestOptions, (response) => {
+      logger.info("Got response", { statusCode: response.statusCode, headers: response.headers });
+
+      // Handle redirects (Google Drive often uses multiple redirects)
+      if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 303 || response.statusCode === 307 || response.statusCode === 308) {
+        const redirectUrl = response.headers.location;
+        logger.info("Following redirect", { redirectUrl });
+        return downloadImage(redirectUrl)
+          .then(resolve)
+          .catch(reject);
+      }
+
+      if (response.statusCode !== 200) {
+        reject(new Error(`Failed to download image: HTTP ${response.statusCode}`));
+        return;
+      }
+
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        logger.info("Download complete", { size: buffer.length });
+        resolve(buffer);
+      });
+      response.on('error', (err) => {
+        logger.error("Error during download", { error: err.message });
+        reject(err);
+      });
+    }).on('error', (err) => {
+      logger.error("Request error", { error: err.message });
+      reject(err);
+    });
+  });
+}

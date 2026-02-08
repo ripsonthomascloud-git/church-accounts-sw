@@ -37,7 +37,7 @@ cd ..
 firebase login
 
 # Step 3: Set production environment secrets
-echo "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" | firebase functions:secrets:set BREVO_API_KEY
+echo "xkeysib-<>" | firebase functions:secrets:set BREVO_API_KEY
 echo "accounts@stpaulsmtcdallas.org" | firebase functions:secrets:set SENDER_EMAIL
 echo "St. Paul's Marthoma Church" | firebase functions:secrets:set SENDER_NAME
 

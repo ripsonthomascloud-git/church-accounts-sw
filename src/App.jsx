@@ -5,6 +5,7 @@ import Navbar from './components/Layout/Navbar';
 import Sidebar from './components/Layout/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Members from './pages/Members';
+import ParishDirectory from './pages/ParishDirectory';
 import Categories from './pages/Categories';
 import Budget from './pages/Budget';
 import Transactions from './pages/Transactions';
@@ -32,6 +33,7 @@ function App() {
                     <Routes>
                       <Route path="/" element={<Dashboard />} />
                       <Route path="/members" element={<Members />} />
+                      <Route path="/parish-directory" element={<ParishDirectory />} />
                       <Route path="/categories" element={<Categories />} />
                       <Route path="/budget" element={<Budget />} />
                       <Route path="/transactions" element={<Transactions />} />

@@ -13,6 +13,11 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Parish Directory collection - only authenticated users can access
+    match /parishDirectory/{familyId} {
+      allow read, write: if isAuthenticated();
+    }
+
     // Income Categories collection - only authenticated users can access
     match /incomeCategories/{categoryId} {
       allow read, write: if isAuthenticated();

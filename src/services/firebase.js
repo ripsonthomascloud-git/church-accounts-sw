@@ -8,6 +8,7 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -22,6 +23,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 const functions = getFunctions(app, 'us-east4');
+const storage = getStorage(app);
 
 // Generic CRUD operations
 export const addDocument = async (collectionName, data) => {
@@ -180,4 +182,4 @@ export const logOut = async () => {
   }
 };
 
-export { db, auth, functions, onAuthStateChanged };
+export { db, auth, functions, storage, onAuthStateChanged, ref, uploadBytes, getDownloadURL };
