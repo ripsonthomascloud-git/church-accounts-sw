@@ -1,18 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { formatDate, formatDateOfBirth } from '../../utils/dateUtils';
 
 const FamilyDetails = ({ family }) => {
   const [imageError, setImageError] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   const handleImageError = () => {
     setImageError(true);
   };
 
+  const openImageModal = () => {
+    if (family.photoUrl && !imageError) {
+      setShowImageModal(true);
+    }
+  };
+
+  const closeImageModal = () => {
+    setShowImageModal(false);
+  };
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        closeImageModal();
+      }
+    };
+
+    if (showImageModal) {
+      document.addEventListener('keydown', handleEscape);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.body.style.overflow = 'unset';
+    };
+  }, [showImageModal]);
+
   return (
     <div className="space-y-6">
       {/* Family Photo */}
       <div className="flex justify-center">
-        <div className="w-64 h-64 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+        <div
+          className={`w-64 h-64 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden ${
+            family.photoUrl && !imageError ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''
+          }`}
+          onClick={openImageModal}
+          title={family.photoUrl && !imageError ? 'Click to view full size' : ''}
+        >
           {family.photoUrl && !imageError ? (
             <img
               src={family.photoUrl}
@@ -141,6 +178,42 @@ const FamilyDetails = ({ family }) => {
           ))}
         </div>
       </div>
+
+      {/* Image Modal */}
+      {showImageModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75 p-4"
+          onClick={closeImageModal}
+        >
+          <div className="relative max-w-7xl max-h-full">
+            <button
+              onClick={closeImageModal}
+              className="absolute top-2 right-2 bg-white rounded-full p-2 hover:bg-gray-200 transition-colors shadow-lg z-10"
+              title="Close (Esc)"
+            >
+              <svg
+                className="w-6 h-6 text-gray-700"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+            <img
+              src={family.photoUrl}
+              alt={family.familyName}
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
