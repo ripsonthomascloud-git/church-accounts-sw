@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 import { updateDocument, getDocument } from '../../services/firebase';
@@ -9,8 +9,16 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterReconciled, setFilterReconciled] = useState('');
+  const [filterAccountType, setFilterAccountType] = useState(() => {
+    return localStorage.getItem('transactionList_filterAccountType') || '';
+  });
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+
+  // Persist account type filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('transactionList_filterAccountType', filterAccountType);
+  }, [filterAccountType]);
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
@@ -41,6 +49,18 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
   };
 
   const transactionCategories = [...new Set(transactions.map(t => t.category))];
+
+  // Get distinct category names from the categories array
+  const distinctCategoryNames = [...new Set(categories.map(c => c.name))];
+
+  // Get subcategories for a selected category
+  const getSubCategoriesForCategory = (categoryName) => {
+    if (!categoryName) return [];
+    return categories
+      .filter(c => c.name === categoryName || c.category === categoryName)
+      .map(c => c.subCategory)
+      .filter(Boolean);
+  };
 
   const filteredTransactions = transactions.filter(transaction => {
     // Filter by category
@@ -86,6 +106,11 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
       return false;
     }
     if (filterReconciled === 'unreconciled' && transaction.isReconciled) {
+      return false;
+    }
+
+    // Filter by account type
+    if (filterAccountType && transaction.accountType !== filterAccountType) {
       return false;
     }
 
@@ -205,7 +230,20 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     <div>
       <div className="mb-6 bg-gray-50 p-4 rounded-lg">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Account Type</label>
+            <select
+              value={filterAccountType}
+              onChange={(e) => setFilterAccountType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All Accounts</option>
+              <option value="Operating">Operating</option>
+              <option value="Building">Building</option>
+            </select>
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
             <select
@@ -265,9 +303,10 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
         </div>
 
-        {(filterCategory || filterMember || filterMonth || filterDate || filterReconciled) && (
+        {(filterAccountType || filterCategory || filterMember || filterMonth || filterDate || filterReconciled) && (
           <button
             onClick={() => {
+              setFilterAccountType('');
               setFilterCategory('');
               setFilterMember('');
               setFilterMonth('');
@@ -454,8 +493,8 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select a category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.name}>{cat.name}</option>
+                {distinctCategoryNames.map(catName => (
+                  <option key={catName} value={catName}>{catName}</option>
                 ))}
               </select>
             ) : (
@@ -475,14 +514,42 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             <label htmlFor="subCategory" className="block text-sm font-medium text-gray-700 mb-1">
               Subcategory
             </label>
-            <input
-              type="text"
-              id="subCategory"
-              name="subCategory"
-              value={editFormData.subCategory || ''}
-              onChange={(e) => setEditFormData({ ...editFormData, subCategory: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            {categories.length > 0 && editFormData.category ? (
+              <>
+                {getSubCategoriesForCategory(editFormData.category).length > 0 ? (
+                  <select
+                    id="subCategory"
+                    name="subCategory"
+                    value={editFormData.subCategory || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, subCategory: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a subcategory</option>
+                    {getSubCategoriesForCategory(editFormData.category).map(subCat => (
+                      <option key={subCat} value={subCat}>{subCat}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    id="subCategory"
+                    name="subCategory"
+                    value={editFormData.subCategory || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, subCategory: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                )}
+              </>
+            ) : (
+              <input
+                type="text"
+                id="subCategory"
+                name="subCategory"
+                value={editFormData.subCategory || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, subCategory: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            )}
           </div>
 
           <div>

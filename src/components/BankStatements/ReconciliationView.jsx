@@ -14,7 +14,9 @@ const ReconciliationView = ({
   allIncomeTransactions = [],
   allExpenseTransactions = []
 }) => {
-  const [filterAccountType, setFilterAccountType] = useState('');
+  const [filterAccountType, setFilterAccountType] = useState(() => {
+    return localStorage.getItem('reconciliationView_filterAccountType') || '';
+  });
   const [selectedTransactions, setSelectedTransactions] = useState([]);
   const navigate = useNavigate();
   const selectedStatementRef = useRef(null);
@@ -24,6 +26,11 @@ const ReconciliationView = ({
   const [filterCategory, setFilterCategory] = useState('');
   const [filterAmount, setFilterAmount] = useState('');
   const [showAllUnreconciled, setShowAllUnreconciled] = useState(false);
+
+  // Persist account type filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('reconciliationView_filterAccountType', filterAccountType);
+  }, [filterAccountType]);
 
   // Auto-scroll to selected statement
   useEffect(() => {

@@ -2,7 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { updateDocument, getDocument } from '../../services/firebase';
 
 const BankStatementList = ({ statements, onSelectStatement, selectedStatementId, onDelete, onUpdate, onUnreconcile }) => {
-  const [filterAccountType, setFilterAccountType] = useState('');
+  const [filterAccountType, setFilterAccountType] = useState(() => {
+    return localStorage.getItem('bankStatementList_filterAccountType') || '';
+  });
   const [filterStatus, setFilterStatus] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -49,6 +51,11 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
       currency: 'USD',
     }).format(amount);
   };
+
+  // Persist account type filter to localStorage
+  useEffect(() => {
+    localStorage.setItem('bankStatementList_filterAccountType', filterAccountType);
+  }, [filterAccountType]);
 
   // Scroll to the last edited row after data refresh
   useEffect(() => {
