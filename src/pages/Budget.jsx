@@ -4,14 +4,17 @@ import { useCategories } from '../hooks/useCategories';
 import AddBudget from '../components/Budget/AddBudget';
 import BudgetList from '../components/Budget/BudgetList';
 import EditBudget from '../components/Budget/EditBudget';
+import ImportBudgets from '../components/Budget/ImportBudgets';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
+import { deleteAllExpenseBudgets } from '../utils/deleteExpenseBudgets';
 
 const Budget = () => {
   const currentYear = new Date().getFullYear();
   const [activeTab, setActiveTab] = useState('income');
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
 
   const {
@@ -29,7 +32,11 @@ const Budget = () => {
   } = useBudgets('expense');
 
   const { categories: incomeCategories } = useCategories('income');
-  const { categories: expenseCategories } = useCategories('expense');
+  const {
+    categories: expenseCategories,
+    addCategory: addExpenseCategory,
+    refreshCategories: refreshExpenseCategories
+  } = useCategories('expense');
 
   const handleAddBudget = async (budgetData) => {
     if (activeTab === 'income') {
@@ -77,6 +84,58 @@ const Budget = () => {
     }
   };
 
+  const handleImportBudgets = async (budgets, missingCategories, createMissing) => {
+    try {
+      // Create missing categories if requested
+      if (createMissing && missingCategories.length > 0) {
+        for (const missing of missingCategories) {
+          // Find the highest order number
+          const maxOrder = expenseCategories.reduce((max, cat) =>
+            Math.max(max, cat.order || 0), 0
+          );
+
+          await addExpenseCategory({
+            order: maxOrder + 1,
+            category: missing.category,
+            name: missing.category,
+            subCategory: missing.subCategory,
+            description: `Imported from CSV`,
+            includeInContributionReport: false
+          });
+        }
+        // Refresh categories after creation
+        await refreshExpenseCategories();
+      }
+
+      // Import budgets
+      for (const budget of budgets) {
+        await setExpenseBudget(
+          selectedYear,
+          budget.category,
+          budget.subCategory,
+          budget.amount
+        );
+      }
+
+      setShowImportModal(false);
+    } catch (error) {
+      console.error('Error importing budgets:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteAllExpenseBudgets = async () => {
+    if (window.confirm('Are you sure you want to delete ALL expense budgets? This action cannot be undone!')) {
+      try {
+        const result = await deleteAllExpenseBudgets();
+        alert(`Successfully deleted ${result.deletedCount} expense budgets`);
+        window.location.reload(); // Refresh the page
+      } catch (error) {
+        alert('Error deleting expense budgets: ' + error.message);
+      }
+    }
+  };
+
   const loading = activeTab === 'income' ? incomeLoading : expenseLoading;
   const budgets = activeTab === 'income' ? incomeBudgets : expenseBudgets;
   const categories = activeTab === 'income' ? incomeCategories : expenseCategories;
@@ -107,6 +166,16 @@ const Budget = () => {
               ))}
             </select>
           </div>
+          {activeTab === 'expense' && (
+            <>
+              <Button onClick={() => setShowImportModal(true)} variant="secondary">
+                Import CSV
+              </Button>
+              <Button onClick={handleDeleteAllExpenseBudgets} variant="secondary" className="bg-red-600 hover:bg-red-700 text-white">
+                Delete All Expense Budgets
+              </Button>
+            </>
+          )}
           <Button onClick={() => setShowAddModal(true)}>Add Budget</Button>
         </div>
       </div>
@@ -178,6 +247,19 @@ const Budget = () => {
             type={activeTab}
           />
         )}
+      </Modal>
+
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Import Expense Budgets from CSV"
+      >
+        <ImportBudgets
+          onImport={handleImportBudgets}
+          onCancel={() => setShowImportModal(false)}
+          categories={expenseCategories}
+          selectedYear={selectedYear}
+        />
       </Modal>
     </div>
   );
