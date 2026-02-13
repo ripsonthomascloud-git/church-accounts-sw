@@ -13,6 +13,7 @@ const ParishDirectory = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEmailListModal, setShowEmailListModal] = useState(false);
   const [selectedFamily, setSelectedFamily] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPrayerGroup, setFilterPrayerGroup] = useState('');
@@ -45,6 +46,23 @@ const ParishDirectory = () => {
       return matchesSearch && matchesPrayerGroup;
     });
   }, [families, searchTerm, filterPrayerGroup]);
+
+  // Generate email list from all members
+  const memberEmailList = useMemo(() => {
+    const members = [];
+    families.forEach(family => {
+      family.members.forEach(member => {
+        if (member.email) {
+          members.push({
+            name: member.name,
+            email: member.email,
+            familyName: family.familyName
+          });
+        }
+      });
+    });
+    return members.sort((a, b) => a.name.localeCompare(b.name));
+  }, [families]);
 
   const handleImportFamilies = async (familiesData) => {
     for (const familyData of familiesData) {
@@ -80,12 +98,36 @@ const ParishDirectory = () => {
     setShowEditModal(true);
   };
 
+  const handleDownloadEmailList = () => {
+    // Create CSV content
+    const csvContent = [
+      ['Name', 'Email', 'Family Name'].join(','),
+      ...memberEmailList.map(member =>
+        [member.name, member.email, member.familyName].join(',')
+      )
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `parish_email_list_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-3xl font-bold text-gray-900">Parish Directory</h1>
         <div className="flex space-x-3">
+          <Button onClick={() => setShowEmailListModal(true)} variant="secondary">
+            Email List
+          </Button>
           <Button onClick={() => setShowImportModal(true)} variant="secondary">
             Import from CSV
           </Button>
@@ -193,6 +235,58 @@ const ParishDirectory = () => {
         size="large"
       >
         {selectedFamily && <FamilyDetails family={selectedFamily} />}
+      </Modal>
+
+      {/* Email List Modal */}
+      <Modal
+        isOpen={showEmailListModal}
+        onClose={() => setShowEmailListModal(false)}
+        title="Member Email List"
+        size="large"
+      >
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-600">
+              Total members with email: {memberEmailList.length}
+            </p>
+            <Button onClick={handleDownloadEmailList} variant="secondary">
+              Download CSV
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Family
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {memberEmailList.map((member, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {member.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {member.email}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {member.familyName}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </Modal>
     </div>
   );
