@@ -187,6 +187,13 @@ const ReconciliationView = ({
 
   const unreconciledStatements = filteredStatements.filter(s => !s.isReconciled && !s.isExcluded);
 
+  // Sort unreconciled statements by posting date in ascending order
+  const sortedUnreconciledStatements = [...unreconciledStatements].sort((a, b) => {
+    const dateA = a.postingDate?.toDate ? a.postingDate.toDate() : new Date(a.postingDate);
+    const dateB = b.postingDate?.toDate ? b.postingDate.toDate() : new Date(b.postingDate);
+    return dateA - dateB;
+  });
+
   // Get all available transactions for manual selection
   const getAllAvailableTransactions = () => {
     if (!selectedStatement) return [];
@@ -253,7 +260,7 @@ const ReconciliationView = ({
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">
-            Bank Statements ({unreconciledStatements.length} unreconciled)
+            Bank Statements ({sortedUnreconciledStatements.length} unreconciled)
           </h3>
           <select
             value={filterAccountType}
@@ -268,14 +275,14 @@ const ReconciliationView = ({
 
         <div className="border border-gray-200 rounded-lg overflow-hidden">
           <div className="max-h-[600px] overflow-y-auto">
-            {unreconciledStatements.length === 0 ? (
+            {sortedUnreconciledStatements.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <p className="text-lg mb-2">All statements reconciled!</p>
                 <p className="text-sm">Great job keeping your records in sync.</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-200">
-                {unreconciledStatements.map((statement) => (
+                {sortedUnreconciledStatements.map((statement) => (
                   <div
                     key={statement.id}
                     ref={selectedStatement?.id === statement.id ? selectedStatementRef : null}

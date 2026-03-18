@@ -50,7 +50,7 @@ const Transactions = () => {
   const loading = activeTab === 'income' ? incomeLoading : expenseLoading;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 max-w-[1400px]">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
         <Button onClick={() => setShowAddModal(true)}>

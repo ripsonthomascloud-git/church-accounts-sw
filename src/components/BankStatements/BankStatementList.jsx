@@ -264,7 +264,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
           }
         }
         // Handle legacy single transaction format
-        else if (statement.reconciledTransactionType && statement.reconciledTransactionId) {
+        else if (statement.reconciledTransactionId && statement.reconciledTransactionType) {
           await updateDocument(
             statement.reconciledTransactionType,
             statement.reconciledTransactionId,
@@ -621,7 +621,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
                         formatDate(statement.postingDate)
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-md">
                       {editingStatementId === statement.id ? (
                         <input
                           type="text"
@@ -631,7 +631,9 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
                           onClick={(e) => e.stopPropagation()}
                         />
                       ) : (
-                        statement.description
+                        <div className="break-words">
+                          {statement.description}
+                        </div>
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">

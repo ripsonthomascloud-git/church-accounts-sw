@@ -228,15 +228,15 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
 
   return (
     <div>
-      <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="mb-4 bg-gray-50 p-3 rounded-lg">
+        <h3 className="text-sm font-semibold text-gray-700 mb-2">Filters</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Account Type</label>
             <select
               value={filterAccountType}
               onChange={(e) => setFilterAccountType(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">All Accounts</option>
               <option value="Operating">Operating</option>
@@ -249,7 +249,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">All Categories</option>
               {transactionCategories.map(cat => (
@@ -265,7 +265,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               value={filterMember}
               onChange={(e) => setFilterMember(e.target.value)}
               placeholder="Search by member..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 
@@ -275,7 +275,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               type="month"
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 
@@ -285,7 +285,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               type="date"
               value={filterDate}
               onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 
@@ -294,7 +294,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             <select
               value={filterReconciled}
               onChange={(e) => setFilterReconciled(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">All</option>
               <option value="reconciled">Reconciled</option>
@@ -313,7 +313,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               setFilterDate('');
               setFilterReconciled('');
             }}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
             Clear All Filters
           </button>
@@ -328,31 +328,31 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Subcategory
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Description
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {type === 'income' ? 'Member' : 'Payee'}
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Account Type
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Reconciled
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Account Type
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Reconciled
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -360,22 +360,27 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredTransactions.map((transaction) => (
                   <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(transaction.date)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
                       {transaction.category}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
                       {transaction.subCategory || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                    <td className="px-3 py-2 text-sm text-gray-600 max-w-xs truncate">
                       {transaction.description || '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
                       {type === 'income' ? (getMemberName(transaction) || '-') : (transaction.payeeName || '-')}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td className={`px-3 py-2 whitespace-nowrap text-sm font-bold text-right ${
+                      type === 'income' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatAmount(transaction.amount)}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         transaction.accountType === 'Building'
                           ? 'bg-purple-100 text-purple-800'
@@ -384,7 +389,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                         {transaction.accountType || 'Operating'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <td className="px-3 py-2 whitespace-nowrap text-center">
                       {transaction.isReconciled ? (
                         <span className="inline-flex items-center text-green-600" title="Reconciled with bank statement">
                           <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -395,12 +400,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
                         <span className="text-gray-400" title="Not reconciled">-</span>
                       )}
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${
-                      type === 'income' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {formatAmount(transaction.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-3 py-2 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => handleEditClick(transaction)}
@@ -425,7 +425,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               </tbody>
             </table>
           </div>
-          <div className={`mt-6 p-4 rounded-lg ${
+          <div className={`mt-4 p-3 rounded-lg ${
             type === 'income' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           } border-2`}>
             <div className="flex justify-between items-center">
