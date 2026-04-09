@@ -176,4 +176,7 @@ The application includes pre-defined church-specific categories that can be auto
 
 ## License
 
+git add --all
+git commit -m "msg" 
+git push -u origin
 MIT

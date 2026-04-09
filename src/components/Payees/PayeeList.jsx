@@ -7,10 +7,17 @@ const PayeeList = ({ payees, onUpdate, onDelete }) => {
   const [editingPayee, setEditingPayee] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredPayees = payees.filter(payee =>
-    payee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payee.phone?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPayees = payees
+    .filter(payee =>
+      payee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payee.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Sort by payeeId in descending order
+      const idA = parseInt(a.payeeId) || 0;
+      const idB = parseInt(b.payeeId) || 0;
+      return idB - idA;
+    });
 
   const handleEdit = (payee) => {
     setEditingPayee({ ...payee });
@@ -39,39 +46,52 @@ const PayeeList = ({ payees, onUpdate, onDelete }) => {
       {filteredPayees.length === 0 ? (
         <p className="text-center text-gray-500 py-8">No payees found</p>
       ) : (
-        <div className="grid gap-4">
-          {filteredPayees.map((payee) => (
-            <div key={payee.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                      ID: {payee.payeeId || 'N/A'}
+        <div className="overflow-x-auto">
+          <table className="w-full bg-white rounded-lg shadow-md">
+            <thead>
+              <tr className="bg-gray-100 border-b border-gray-300">
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">ID</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Name</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Phone</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Address</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Notes</th>
+                <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                <th className="text-right py-3 px-4 font-semibold text-gray-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPayees.map((payee) => (
+                <tr key={payee.id} className="border-b border-gray-200 hover:bg-gray-50">
+                  <td className="py-3 px-4">
+                    <span className="text-sm font-medium text-gray-900">
+                      {payee.payeeId || 'N/A'}
                     </span>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    {payee.name}
-                  </h3>
-                  <p className="text-gray-600">{payee.phone}</p>
-                  <p className="text-sm text-gray-500 mt-1">{payee.address}</p>
-                  {payee.notes && (
-                    <p className="text-sm text-gray-600 mt-2 italic">{payee.notes}</p>
-                  )}
-                  <span className={`inline-block mt-2 px-3 py-1 text-sm rounded-full ${
-                    payee.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {payee.status}
-                  </span>
-                </div>
-                <div className="flex space-x-2">
-                  <Button variant="secondary" onClick={() => handleEdit(payee)}>Edit</Button>
-                  <Button variant="danger" onClick={() => onDelete(payee.id)}>Delete</Button>
-                </div>
-              </div>
-            </div>
-          ))}
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="font-semibold text-gray-900">{payee.name}</span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-600">{payee.phone}</td>
+                  <td className="py-3 px-4 text-sm text-gray-600">{payee.address}</td>
+                  <td className="py-3 px-4 text-sm text-gray-600 italic">{payee.notes || '-'}</td>
+                  <td className="py-3 px-4">
+                    <span className={`inline-block px-3 py-1 text-xs rounded-full ${
+                      payee.status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {payee.status}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex justify-end space-x-2">
+                      <Button variant="secondary" onClick={() => handleEdit(payee)}>Edit</Button>
+                      <Button variant="danger" onClick={() => onDelete(payee.id)}>Delete</Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

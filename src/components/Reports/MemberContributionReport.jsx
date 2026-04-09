@@ -25,6 +25,7 @@ const MemberContributionReport = () => {
   const [emailStatus, setEmailStatus] = useState(null);
   const [consolidatedFilter, setConsolidatedFilter] = useState('');
   const [memberDropdownFilter, setMemberDropdownFilter] = useState('');
+  const [reportAsOfDate, setReportAsOfDate] = useState(new Date().toISOString().split('T')[0]);
   const letterRef = useRef(null);
 
   // Filter transactions to only include those in contribution reports
@@ -34,6 +35,10 @@ const MemberContributionReport = () => {
         .filter(cat => cat.includeInContributionReport)
         .map(cat => cat.name)
     );
+
+    // Calculate start of year based on reportAsOfDate
+    const reportYear = new Date(reportAsOfDate).getFullYear();
+    const startOfYear = `${reportYear}-01-01`;
 
     return incomeTransactions.filter(t => {
       // Normalize transaction date to YYYY-MM-DD format for comparison
@@ -48,10 +53,17 @@ const MemberContributionReport = () => {
         return false;
       }
 
-      const dateMatch = (!dateFrom || transactionDate >= dateFrom) && (!dateTo || transactionDate <= dateTo);
+      // If dateFrom and dateTo are set, use those; otherwise use start of year to reportAsOfDate
+      let dateMatch;
+      if (dateFrom && dateTo) {
+        dateMatch = transactionDate >= dateFrom && transactionDate <= dateTo;
+      } else {
+        dateMatch = transactionDate >= startOfYear && transactionDate <= reportAsOfDate;
+      }
+      
       return dateMatch && (contributionCategoryNames.has(t.category) || contributionCategoryNames.has(t.subCategory));
     });
-  }, [incomeTransactions, incomeCategories, dateFrom, dateTo]);
+  }, [incomeTransactions, incomeCategories, dateFrom, dateTo, reportAsOfDate]);
 
   // Load email logs and scheduled emails
   useEffect(() => {
@@ -169,6 +181,10 @@ const MemberContributionReport = () => {
     // Handle Firestore Timestamp objects
     if (dateString.seconds) {
       date = new Date(dateString.seconds * 1000);
+    } else if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      // Handle YYYY-MM-DD format (from date input) - parse as UTC to avoid timezone issues
+      const [year, month, day] = dateString.split('-').map(Number);
+      date = new Date(year, month - 1, day);
     } else {
       date = new Date(dateString);
     }
@@ -177,7 +193,7 @@ const MemberContributionReport = () => {
 
     // If custom options provided, use them; otherwise use dd/mm/yyyy format
     if (Object.keys(options).length > 0) {
-      return date.toLocaleDateString('en-GB', options);
+      return date.toLocaleDateString('en-US', options);
     }
 
     // Default mm/dd/yyyy format
@@ -201,23 +217,26 @@ const MemberContributionReport = () => {
 
     try {
       const canvas = await html2canvas(letterRef.current, {
-        scale: 1.5,
+        scale: 3,
         logging: false,
         useCORS: true,
+        backgroundColor: '#ffffff',
+        windowWidth: letterRef.current.scrollWidth,
+        windowHeight: letterRef.current.scrollHeight,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
-        compress: true,
+        compress: false,
       });
 
       const imgWidth = 210; // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
 
       if (downloadLocally) {
         const member = members.find(m => m.id === selectedMemberId);
@@ -420,7 +439,7 @@ const MemberContributionReport = () => {
       <div className="bg-white p-6 rounded-lg shadow-md">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Member Contribution Report</h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Date From
@@ -440,6 +459,17 @@ const MemberContributionReport = () => {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Report As of Date
+            </label>
+            <input
+              type="date"
+              value={reportAsOfDate}
+              onChange={(e) => setReportAsOfDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -547,26 +577,26 @@ const MemberContributionReport = () => {
           )}
 
           {/* Letter Format */}
-          <div ref={letterRef} className="p-12 bg-white">
+          <div ref={letterRef} className="px-8 py-6 bg-white max-w-[210mm] mx-auto">
             {/* Logo and Header */}
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <img
                 src="/logo.png"
                 alt="Church Logo"
-                className="w-24 h-24 mx-auto mb-4"
+                className="w-20 h-20 mx-auto mb-3"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">
                 St. Paul's Mar Thoma Church
               </h1>
-              <div className="text-sm text-gray-600 mb-6">
-                <p>Contributions as of  {formatDate(new Date(), {
+              <div className="text-xs text-gray-600 mb-4">
+                <p>Contributions as of  {formatDate(reportAsOfDate, {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric'
                 })}</p>
                 {dateFrom && dateTo && (
-                  <p className="mt-1">
+                  <p className="mt-0.5">
                     Period: {formatDate(dateFrom)} - {formatDate(dateTo)}
                   </p>
                 )}
@@ -574,11 +604,11 @@ const MemberContributionReport = () => {
             </div>
 
             {/* Letter Body */}
-            <div className="mb-8">
-              <p className="text-lg mb-4">
+            <div className="mb-4">
+              <p className="text-sm mb-2">
                 Dear {selectedMemberData.member.firstName} {selectedMemberData.member.lastName},
               </p>
-              <p className="mb-6 text-gray-700">
+              <p className="mb-3 text-xs text-gray-700 leading-relaxed">
                 Thank you for your generous contributions to St. Paul's Marthoma Church.
                 Your support helps us continue our mission and serve our community.
                 Below is a detailed summary of your contributions{dateFrom && dateTo ? ' for the specified period' : ''}.
@@ -586,35 +616,35 @@ const MemberContributionReport = () => {
             </div>
 
             {/* Individual Transactions Grid */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4 text-gray-900">Contribution Details</h3>
-              <table className="w-full border-collapse">
+            <div className="mb-4">
+              <h3 className="text-base font-semibold mb-2 text-gray-900 border-b border-gray-300 pb-1">Contribution Details</h3>
+              <table className="w-full border-collapse text-xs">
                 <thead>
-                  <tr className="bg-gray-100 border-b-2 border-gray-300">
-                    <th className="text-left py-3 px-4 font-semibold">Date</th>
-                    <th className="text-left py-3 px-4 font-semibold">Category</th>
-                    <th className="text-left py-3 px-4 font-semibold">Sub Category</th>
-                    <th className="text-left py-3 px-4 font-semibold">Description</th>
-                    <th className="text-right py-3 px-4 font-semibold">Amount</th>
+                  <tr className="bg-gray-100 border-b border-gray-300">
+                    <th className="text-left py-1.5 px-2 font-semibold">Date</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Category</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Sub Category</th>
+                    <th className="text-left py-1.5 px-2 font-semibold">Description</th>
+                    <th className="text-right py-1.5 px-2 font-semibold">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {selectedMemberData.transactions.map((transaction, index) => (
-                    <tr key={transaction.id || index} className="border-b border-gray-200">
-                      <td className="py-2 px-4">
+                    <tr key={transaction.id || index} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="py-1 px-2 whitespace-nowrap">
                         {formatDate(transaction.date)}
                       </td>
-                      <td className="py-2 px-4">{transaction.category || 'Uncategorized'}</td>
-                      <td className="py-2 px-4">{transaction.subCategory || '-'}</td>
-                      <td className="py-2 px-4">{transaction.description || '-'}</td>
-                      <td className="text-right py-2 px-4">{formatCurrency(transaction.amount)}</td>
+                      <td className="py-1 px-2">{transaction.category || 'Uncategorized'}</td>
+                      <td className="py-1 px-2">{transaction.subCategory || '-'}</td>
+                      <td className="py-1 px-2">{transaction.description || '-'}</td>
+                      <td className="text-right py-1 px-2 whitespace-nowrap">{formatCurrency(transaction.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t-2 border-gray-400 bg-gray-50">
-                    <td colSpan="4" className="py-3 px-4 font-bold text-lg">Grand Total</td>
-                    <td className="text-right py-3 px-4 font-bold text-lg">
+                  <tr className="border-t-2 border-gray-400 bg-gray-100">
+                    <td colSpan="4" className="py-2 px-2 font-bold text-sm">Grand Total</td>
+                    <td className="text-right py-2 px-2 font-bold text-sm">
                       {formatCurrency(selectedMemberData.total)}
                     </td>
                   </tr>
@@ -623,11 +653,11 @@ const MemberContributionReport = () => {
             </div>
 
             {/* Closing */}
-            <div className="mt-8 text-gray-700">
-              <p className="mb-2">With gratitude,</p>
-              <p className="font-semibold">Trustees ,</p>
-              <p className="font-semibold"> Sd/- </p>
-              <p className="font-semibold"> Raju Chacko (Trustee Finance)</p>
+            <div className="mt-4 text-gray-700 text-xs">
+              <p className="mb-1">With gratitude,</p>
+              <p className="font-semibold mt-2">Trustees,</p>
+              <p className="font-semibold mt-1">Sd/-</p>
+              <p className="font-semibold">Raju Chacko (Trustee Finance)</p>
               <p className="font-semibold">Ripson Thomas (Trustee Accounts)</p>
             </div>
           </div>
@@ -635,7 +665,7 @@ const MemberContributionReport = () => {
       )}
 
       {showConsolidated && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md mx-4">
           <h3 className="text-xl font-bold text-gray-900 mb-4">
             Consolidated Member Contributions
           </h3>
@@ -657,12 +687,12 @@ const MemberContributionReport = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-gray-300">
-                  <th className="text-left py-2 px-4">Member Name</th>
-                  <th className="text-right py-2 px-4">Transactions</th>
-                  <th className="text-right py-2 px-4">Total Contributions</th>
+                <tr className="bg-gray-100 border-b border-gray-300">
+                  <th className="text-left py-2 px-3">Member Name</th>
+                  <th className="text-right py-2 px-3">Transactions</th>
+                  <th className="text-right py-2 px-3">Total Contributions</th>
                 </tr>
               </thead>
               <tbody>
@@ -673,19 +703,19 @@ const MemberContributionReport = () => {
                     onClick={() => handleMemberClick(member.memberId)}
                     title="Click to view detailed report"
                   >
-                    <td className="py-2 px-4">{member.memberName}</td>
-                    <td className="text-right py-2 px-4">{member.transactionCount}</td>
-                    <td className="text-right py-2 px-4">{formatCurrency(member.total)}</td>
+                    <td className="py-1.5 px-3">{member.memberName}</td>
+                    <td className="text-right py-1.5 px-3">{member.transactionCount}</td>
+                    <td className="text-right py-1.5 px-3">{formatCurrency(member.total)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-300 font-bold">
-                  <td className="py-2 px-4">Grand Total</td>
-                  <td className="text-right py-2 px-4">
+                <tr className="bg-gray-100 border-t-2 border-gray-400 font-bold">
+                  <td className="py-2 px-3">Grand Total</td>
+                  <td className="text-right py-2 px-3">
                     {filteredConsolidatedData.reduce((sum, m) => sum + m.transactionCount, 0)}
                   </td>
-                  <td className="text-right py-2 px-4">{formatCurrency(grandTotal)}</td>
+                  <td className="text-right py-2 px-3">{formatCurrency(grandTotal)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -701,37 +731,37 @@ const MemberContributionReport = () => {
 
       {/* Email Logs */}
       {showEmailLogs && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md mx-4">
           <h3 className="text-xl font-bold text-gray-900 mb-4">Email Audit Trail</h3>
           {emailLogs.length === 0 ? (
             <p className="text-gray-500 text-center py-4">No emails sent yet</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b-2 border-gray-300">
-                    <th className="text-left py-2 px-4">Date/Time</th>
-                    <th className="text-left py-2 px-4">Member</th>
-                    <th className="text-left py-2 px-4">Email</th>
-                    <th className="text-left py-2 px-4">Period</th>
-                    <th className="text-left py-2 px-4">Status</th>
+                  <tr className="bg-gray-100 border-b border-gray-300">
+                    <th className="text-left py-2 px-3">Date/Time</th>
+                    <th className="text-left py-2 px-3">Member</th>
+                    <th className="text-left py-2 px-3">Email</th>
+                    <th className="text-left py-2 px-3">Period</th>
+                    <th className="text-left py-2 px-3">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {emailLogs.map((log) => (
                     <tr key={log.id} className="border-b border-gray-200">
-                      <td className="py-2 px-4">
+                      <td className="py-1.5 px-3 whitespace-nowrap">
                         {log.sentAt ? new Date(log.sentAt.seconds * 1000).toLocaleString() : 'N/A'}
                       </td>
-                      <td className="py-2 px-4">{log.memberName}</td>
-                      <td className="py-2 px-4">{log.email}</td>
-                      <td className="py-2 px-4">
+                      <td className="py-1.5 px-3">{log.memberName}</td>
+                      <td className="py-1.5 px-3">{log.email}</td>
+                      <td className="py-1.5 px-3">
                         {log.dateFrom && log.dateTo
                           ? `${formatDate(log.dateFrom)} - ${formatDate(log.dateTo)}`
                           : 'All time'}
                       </td>
-                      <td className="py-2 px-4">
-                        <span className={`px-2 py-1 rounded text-sm ${
+                      <td className="py-1.5 px-3">
+                        <span className={`px-2 py-0.5 rounded text-xs ${
                           log.status === 'success'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-red-100 text-red-800'
@@ -753,36 +783,36 @@ const MemberContributionReport = () => {
 
       {/* Scheduled Emails */}
       {scheduledEmails.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="bg-white p-6 rounded-lg shadow-md mx-4">
           <h3 className="text-xl font-bold text-gray-900 mb-4">Scheduled Emails</h3>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="border-b-2 border-gray-300">
-                  <th className="text-left py-2 px-4">Scheduled For</th>
-                  <th className="text-left py-2 px-4">Recipients</th>
-                  <th className="text-left py-2 px-4">Period</th>
-                  <th className="text-left py-2 px-4">Status</th>
+                <tr className="bg-gray-100 border-b border-gray-300">
+                  <th className="text-left py-2 px-3">Scheduled For</th>
+                  <th className="text-left py-2 px-3">Recipients</th>
+                  <th className="text-left py-2 px-3">Period</th>
+                  <th className="text-left py-2 px-3">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {scheduledEmails.map((schedule) => (
                   <tr key={schedule.id} className="border-b border-gray-200">
-                    <td className="py-2 px-4">
+                    <td className="py-1.5 px-3 whitespace-nowrap">
                       {schedule.scheduledFor
                         ? new Date(schedule.scheduledFor.seconds * 1000).toLocaleString()
                         : 'N/A'}
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-1.5 px-3">
                       {schedule.memberIds?.length || 0} member(s)
                     </td>
-                    <td className="py-2 px-4">
+                    <td className="py-1.5 px-3">
                       {schedule.dateFrom && schedule.dateTo
                         ? `${formatDate(schedule.dateFrom)} - ${formatDate(schedule.dateTo)}`
                         : 'All time'}
                     </td>
-                    <td className="py-2 px-4">
-                      <span className={`px-2 py-1 rounded text-sm ${
+                    <td className="py-1.5 px-3">
+                      <span className={`px-2 py-0.5 rounded text-xs ${
                         schedule.status === 'pending'
                           ? 'bg-yellow-100 text-yellow-800'
                           : schedule.status === 'sent'

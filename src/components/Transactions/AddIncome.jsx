@@ -100,7 +100,8 @@ const AddIncome = ({ onAdd, onCancel, categories, members }) => {
     return categories
       .filter(c => c.category === formData.category)
       .map(c => ({ name: c.name, subCategory: c.subCategory }))
-      .filter(c => c.subCategory);
+      .filter(c => c.subCategory)
+      .sort((a, b) => a.subCategory.localeCompare(b.subCategory));
   }, [categories, formData.category]);
 
   // Filter members based on search

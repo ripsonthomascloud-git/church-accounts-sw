@@ -124,7 +124,15 @@ export const findFuzzyMatches = (bankStatement, transactions, members = []) => {
   if (!bankStatement || !transactions) return [];
 
   const expectedTransactionType = getTransactionType(bankStatement.amount);
-  const comment = bankStatement.comment?.trim();
+  
+  // Get search terms from both comment and description
+  const searchTerms = [];
+  if (bankStatement.comment?.trim()) {
+    searchTerms.push(bankStatement.comment.trim());
+  }
+  if (bankStatement.description?.trim()) {
+    searchTerms.push(bankStatement.description.trim());
+  }
 
   const matches = transactions.filter(transaction => {
     // Skip already reconciled transactions
@@ -142,45 +150,46 @@ export const findFuzzyMatches = (bankStatement, transactions, members = []) => {
     return true;
   });
 
-  // If there's a comment, calculate match scores for sorting
-  if (comment) {
-    return matches.map(transaction => {
-      const searchableTexts = getTransactionSearchableText(transaction, members);
-      let bestScore = 0;
-      let matchedField = '';
+  // Calculate match scores using all search terms
+  return matches.map(transaction => {
+    const searchableTexts = getTransactionSearchableText(transaction, members);
+    let bestScore = 0;
+    let matchedField = '';
 
+    // Check each search term against each searchable field
+    for (const searchTerm of searchTerms) {
       for (const text of searchableTexts) {
-        const score = fuzzyMatchScore(comment, text);
+        const score = fuzzyMatchScore(searchTerm, text);
         if (score > bestScore) {
           bestScore = score;
           matchedField = text;
         }
       }
+    }
 
-      return {
-        ...transaction,
-        matchScore: bestScore,
-        matchedField: matchedField
-      };
-    }).sort((a, b) => {
-      // Sort by match score (highest first), then by date proximity
-      if (b.matchScore !== a.matchScore) {
-        return b.matchScore - a.matchScore;
-      }
-      // Secondary sort by date proximity
-      const dateA = normalizeDate(a.date);
-      const dateB = normalizeDate(b.date);
-      const statementDate = normalizeDate(bankStatement.postingDate);
-      if (dateA && dateB && statementDate) {
-        const diffA = Math.abs(dateA.getTime() - statementDate.getTime());
-        const diffB = Math.abs(dateB.getTime() - statementDate.getTime());
-        return diffA - diffB;
-      }
-      return 0;
-    });
-  }
-
-  return matches;
+    return {
+      ...transaction,
+      matchScore: bestScore,
+      matchedField: matchedField
+    };
+  })
+  .filter(t => t.matchScore > 0) // Only include transactions with some match
+  .sort((a, b) => {
+    // Sort by match score (highest first), then by date proximity
+    if (b.matchScore !== a.matchScore) {
+      return b.matchScore - a.matchScore;
+    }
+    // Secondary sort by date proximity
+    const dateA = normalizeDate(a.date);
+    const dateB = normalizeDate(b.date);
+    const statementDate = normalizeDate(bankStatement.postingDate);
+    if (dateA && dateB && statementDate) {
+      const diffA = Math.abs(dateA.getTime() - statementDate.getTime());
+      const diffB = Math.abs(dateB.getTime() - statementDate.getTime());
+      return diffA - diffB;
+    }
+    return 0;
+  });
 };
 
 /**
@@ -255,9 +264,9 @@ const getTransactionSearchableText = (transaction, members = []) => {
 };
 
 /**
- * Calculate fuzzy match score between two strings
- * @param {string} str1 - First string
- * @param {string} str2 - Second string
+ * Calculate fuzzy match score between two strings with enhanced word-by-word matching
+ * @param {string} str1 - First string (bank statement comment)
+ * @param {string} str2 - Second string (transaction field)
  * @returns {number} - Match score (0-100)
  */
 const fuzzyMatchScore = (str1, str2) => {
@@ -270,30 +279,76 @@ const fuzzyMatchScore = (str1, str2) => {
   if (s1 === s2) return 100;
 
   // One contains the other
-  if (s1.includes(s2) || s2.includes(s1)) return 80;
+  if (s1.includes(s2) || s2.includes(s1)) return 90;
 
   // Split into words and check for word matches
-  const words1 = s1.split(/\s+/);
-  const words2 = s2.split(/\s+/);
+  const words1 = s1.split(/\s+/).filter(w => w.length > 0);
+  const words2 = s2.split(/\s+/).filter(w => w.length > 0);
 
   let matchingWords = 0;
+  let exactWordMatches = 0;
+  let partialWordMatches = 0;
+
+  // Check each word from comment against each word in transaction
   for (const word1 of words1) {
+    let bestMatchForWord = 0;
+    
     for (const word2 of words2) {
-      if (word1.length >= 3 && word2.length >= 3) {
-        if (word1 === word2) {
-          matchingWords += 2; // Exact word match
-        } else if (word1.includes(word2) || word2.includes(word1)) {
-          matchingWords += 1; // Partial word match
+      // Skip very short words (less than 2 characters)
+      if (word1.length < 2 && word2.length < 2) continue;
+
+      // Exact word match (case-insensitive)
+      if (word1 === word2) {
+        bestMatchForWord = Math.max(bestMatchForWord, 3);
+        exactWordMatches++;
+      }
+      // One word contains the other (for partial matches like "John" in "Johnson")
+      else if (word1.length >= 3 && word2.length >= 3) {
+        if (word1.includes(word2) || word2.includes(word1)) {
+          bestMatchForWord = Math.max(bestMatchForWord, 2);
+          partialWordMatches++;
+        }
+        // Check for substring match with at least 3 characters
+        else if (word1.length >= 4 && word2.length >= 4) {
+          // Find longest common substring
+          const minLen = Math.min(word1.length, word2.length);
+          for (let len = minLen; len >= 3; len--) {
+            let found = false;
+            for (let i = 0; i <= word1.length - len; i++) {
+              const substr = word1.substring(i, i + len);
+              if (word2.includes(substr)) {
+                bestMatchForWord = Math.max(bestMatchForWord, 1);
+                found = true;
+                break;
+              }
+            }
+            if (found) break;
+          }
         }
       }
+      // For 2-character words, require exact match
+      else if (word1.length === 2 && word2.length === 2 && word1 === word2) {
+        bestMatchForWord = Math.max(bestMatchForWord, 2);
+      }
     }
+    
+    matchingWords += bestMatchForWord;
   }
 
-  // Calculate score based on matching words
+  // Calculate score with weighted emphasis on matches
   const totalWords = Math.max(words1.length, words2.length);
-  const wordScore = totalWords > 0 ? (matchingWords / totalWords) * 60 : 0;
+  if (totalWords === 0) return 0;
 
-  return Math.round(wordScore);
+  // Base score from matching words
+  const baseScore = (matchingWords / (totalWords * 3)) * 100;
+
+  // Bonus for having multiple exact word matches
+  const exactMatchBonus = Math.min(exactWordMatches * 5, 20);
+
+  // Final score
+  const finalScore = Math.min(Math.round(baseScore + exactMatchBonus), 95);
+
+  return finalScore;
 };
 
 /**
