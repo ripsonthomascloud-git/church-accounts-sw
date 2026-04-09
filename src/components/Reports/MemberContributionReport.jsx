@@ -217,7 +217,7 @@ const MemberContributionReport = () => {
 
     try {
       const canvas = await html2canvas(letterRef.current, {
-        scale: 3,
+        scale: 1.5,
         logging: false,
         useCORS: true,
         backgroundColor: '#ffffff',
@@ -225,12 +225,12 @@ const MemberContributionReport = () => {
         windowHeight: letterRef.current.scrollHeight,
       });
 
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgData = canvas.toDataURL('image/jpeg', 0.7);
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
-        compress: false,
+        compress: true,
       });
 
       const imgWidth = 210; // A4 width in mm
