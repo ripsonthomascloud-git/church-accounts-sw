@@ -32,11 +32,12 @@ const ParishDirectory = () => {
   // Filter families based on search and prayer group
   const filteredFamilies = useMemo(() => {
     return families.filter(family => {
-      // Search filter (family name, member names, prayer group)
+      // Search filter (family name, member names, prayer group, address)
       const searchLower = searchTerm.toLowerCase();
       const matchesSearch = searchTerm === '' ||
         family.familyName.toLowerCase().includes(searchLower) ||
         (family.prayerGroup && family.prayerGroup.toLowerCase().includes(searchLower)) ||
+        (family.address && family.address.toLowerCase().includes(searchLower)) ||
         family.members.some(member => member.name.toLowerCase().includes(searchLower));
 
       // Prayer group filter
@@ -140,7 +141,7 @@ const ParishDirectory = () => {
         <div className="flex-1">
           <input
             type="text"
-            placeholder="Search by family name, member name, or prayer group..."
+            placeholder="Search by family name, member name, address, or prayer group..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
