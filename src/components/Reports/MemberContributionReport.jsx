@@ -324,8 +324,42 @@ const MemberContributionReport = () => {
       return;
     }
 
+    // Check which members received emails in the last 7 days
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const membersToSend = membersWithContributions.filter(memberData => {
+      const member = members.find(m => m.id === memberData.memberId);
+      
+      // Find the most recent successful email log for this member
+      const recentLog = emailLogs
+        .filter(log => 
+          log.memberId === member.id && 
+          log.status === 'success' &&
+          log.sentAt
+        )
+        .sort((a, b) => {
+          const dateA = a.sentAt?.toDate ? a.sentAt.toDate() : new Date(a.sentAt);
+          const dateB = b.sentAt?.toDate ? b.sentAt.toDate() : new Date(b.sentAt);
+          return dateB - dateA;
+        })[0];
+
+      if (!recentLog) return true; // No email sent before, include them
+
+      const sentDate = recentLog.sentAt?.toDate ? recentLog.sentAt.toDate() : new Date(recentLog.sentAt);
+      return sentDate < oneWeekAgo; // Only include if last email was more than a week ago
+    });
+
+    const skippedCount = membersWithContributions.length - membersToSend.length;
+
+    if (membersToSend.length === 0) {
+      alert('All members with contributions have received emails in the last 7 days. No emails to send.');
+      return;
+    }
+
     const confirmed = window.confirm(
-      `Send contribution reports to ${membersWithContributions.length} members with email addresses?`
+      `Send contribution reports to ${membersToSend.length} members?\n\n` +
+      `${skippedCount} member(s) will be skipped (already received email in last 7 days).`
     );
 
     if (!confirmed) return;
@@ -336,7 +370,7 @@ const MemberContributionReport = () => {
     let successCount = 0;
     let failCount = 0;
 
-    for (const memberData of membersWithContributions) {
+    for (const memberData of membersToSend) {
       const member = members.find(m => m.id === memberData.memberId);
 
       try {
@@ -388,7 +422,7 @@ const MemberContributionReport = () => {
     setIsSendingEmail(false);
     setEmailStatus({
       type: successCount > 0 ? 'success' : 'error',
-      message: `Sent ${successCount} emails successfully. ${failCount} failed.`
+      message: `Sent ${successCount} emails successfully. ${failCount} failed. ${skippedCount} skipped (sent within last 7 days).`
     });
 
     // Reload email logs
