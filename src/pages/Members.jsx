@@ -5,11 +5,13 @@ import ImportMembers from '../components/Members/ImportMembers';
 import MemberList from '../components/Members/MemberList';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
+import { updateMemberLastNames } from '../utils/updateMemberLastNames';
 
 const Members = () => {
-  const { members, loading, addMember, updateMember, deleteMember } = useMembers();
+  const { members, loading, addMember, updateMember, deleteMember, refreshMembers } = useMembers();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleAddMember = async (memberData) => {
     await addMember(memberData);
@@ -21,6 +23,25 @@ const Members = () => {
       await addMember(member);
     }
     setShowImportModal(false);
+  };
+
+  const handleUpdateLastNames = async () => {
+    const confirmed = window.confirm(
+      'This will replace all periods (.) in member last names with spaces. Continue?'
+    );
+    
+    if (!confirmed) return;
+
+    setIsUpdating(true);
+    try {
+      const result = await updateMemberLastNames();
+      alert(result.message);
+      await refreshMembers();
+    } catch (error) {
+      alert(`Error updating last names: ${error.message}`);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   if (loading) {
@@ -36,6 +57,13 @@ const Members = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Members</h1>
         <div className="flex space-x-3">
+          <Button 
+            onClick={handleUpdateLastNames} 
+            variant="secondary"
+            disabled={isUpdating}
+          >
+            {isUpdating ? 'Updating...' : 'Fix Last Names'}
+          </Button>
           <Button onClick={() => setShowImportModal(true)} variant="secondary">
             Import from CSV
           </Button>
