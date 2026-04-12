@@ -247,7 +247,8 @@ const MemberContributionReport = () => {
       return pdf.output('blob');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF');
+      if (downloadLocally) alert('Failed to generate PDF');
+      throw error;
     }
   };
 
@@ -376,9 +377,10 @@ const MemberContributionReport = () => {
       try {
         // Temporarily select member to generate their report
         setSelectedMemberId(member.id);
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for render
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait for render
 
         const pdfBlob = await handleDownloadPDF(false);
+        if (!(pdfBlob instanceof Blob)) throw new Error('Failed to generate PDF for member');
         const reportPeriod = dateFrom && dateTo
           ? `${formatDate(dateFrom)} - ${formatDate(dateTo)}`
           : new Date().getFullYear().toString();

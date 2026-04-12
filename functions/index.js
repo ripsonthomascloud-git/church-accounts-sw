@@ -6,7 +6,7 @@
  */
 
 const {setGlobalOptions} = require("firebase-functions/v2");
-const {onCall} = require("firebase-functions/v2/https");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
 const {defineString} = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const brevo = require("@getbrevo/brevo");
@@ -54,7 +54,7 @@ exports.sendContributionEmail = onCall(
       reportPeriod,
       hasPdf: !!pdfBase64
     });
-    throw new Error("Missing required parameters");
+    throw new HttpsError('invalid-argument', "Missing required parameters");
   }
 
   // Get Brevo API key and sender info from environment parameters
@@ -64,7 +64,7 @@ exports.sendContributionEmail = onCall(
 
   if (!brevoApiKey) {
     logger.error("Brevo API key not configured");
-    throw new Error("Email service not configured. Please set BREVO_API_KEY.");
+    throw new HttpsError('failed-precondition', "Email service not configured. Please set BREVO_API_KEY.");
   }
 
   try {
@@ -175,11 +175,8 @@ exports.sendContributionEmail = onCall(
     });
 
     // Throw a user-friendly error
-    throw new Error(
-      error.response?.text ||
-      error.message ||
-      "Failed to send email. Please try again later."
-    );
+    const brevoError = error.response?.body?.message || error.response?.text || error.message || "Failed to send email. Please try again later.";
+    throw new HttpsError('internal', brevoError);
   }
   }
 );
