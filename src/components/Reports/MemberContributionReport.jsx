@@ -376,6 +376,7 @@ const MemberContributionReport = () => {
 
       try {
         // Temporarily select member to generate their report
+        setShowConsolidated(false);
         setSelectedMemberId(member.id);
         await new Promise(resolve => setTimeout(resolve, 500)); // Wait for render
 
