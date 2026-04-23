@@ -1,14 +1,22 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MemberContributionReport from '../components/Reports/MemberContributionReport';
 import ExpenseSummaryReport from '../components/Reports/ExpenseSummaryReport';
 import IncomeSummaryReport from '../components/Reports/IncomeSummaryReport';
+import Button from '../components/common/Button';
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('contributions');
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
+        <Button onClick={() => navigate('/reports/consolidated-member')} variant="secondary">
+          Consolidated Member Report
+        </Button>
+      </div>
 
       <div className="border-b border-gray-200">
         <nav className="flex space-x-8 overflow-x-auto">

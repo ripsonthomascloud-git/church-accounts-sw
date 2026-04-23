@@ -12,6 +12,7 @@ import Transactions from './pages/Transactions';
 import Payees from './pages/Payees';
 import BankStatements from './pages/BankStatements';
 import Reports from './pages/Reports';
+import ConsolidatedMemberReport from './components/Reports/ConsolidatedMemberReport';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 
@@ -40,6 +41,7 @@ function App() {
                       <Route path="/payees" element={<Payees />} />
                       <Route path="/bank-statements" element={<BankStatements />} />
                       <Route path="/reports" element={<Reports />} />
+                      <Route path="/reports/consolidated-member" element={<ConsolidatedMemberReport />} />
                     </Routes>
                   </main>
                 </div>
