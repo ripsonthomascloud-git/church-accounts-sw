@@ -3,7 +3,8 @@ import { useMembers } from '../../hooks/useMembers';
 import { useTransactions } from '../../hooks/useTransactions';
 import Button from '../common/Button';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const ConsolidatedMemberReport = () => {
   const { members } = useMembers();
@@ -41,14 +42,18 @@ const ConsolidatedMemberReport = () => {
       });
     }
 
-    // Get all unique contribution types (subcategories)
-    const types = new Set();
+    // Get all unique contribution types (category - subcategory)
+    const typesMap = new Map();
     filteredIncome.forEach(transaction => {
-      if (transaction.subCategory) {
-        types.add(transaction.subCategory);
+      if (transaction.category && transaction.subCategory) {
+        const key = transaction.subCategory;
+        const label = `${transaction.category} - ${transaction.subCategory}`;
+        typesMap.set(key, label);
       }
     });
-    const sortedTypes = Array.from(types).sort();
+    const sortedTypes = Array.from(typesMap.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([key, label]) => ({ key, label }));
     setContributionTypes(sortedTypes);
 
     // Build report data for each member
@@ -62,9 +67,9 @@ const ConsolidatedMemberReport = () => {
 
       sortedTypes.forEach(type => {
         const typeTotal = memberContributions
-          .filter(t => t.subCategory === type)
+          .filter(t => t.subCategory === type.key)
           .reduce((sum, t) => sum + (t.amount || 0), 0);
-        contributionsByType[type] = typeTotal;
+        contributionsByType[type.key] = typeTotal;
         total += typeTotal;
       });
 
@@ -97,42 +102,127 @@ const ConsolidatedMemberReport = () => {
   };
 
   const handleDownloadPDF = async () => {
-    if (!reportRef.current) return;
-
     try {
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 1.5,
-        logging: false,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        windowWidth: reportRef.current.scrollWidth,
-        windowHeight: reportRef.current.scrollHeight,
-      });
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.7);
+      console.log('Starting PDF generation...');
+      console.log('Report data:', reportData.length, 'members');
+      console.log('Contribution types:', contributionTypes.length);
+      
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4',
         compress: true,
       });
+      
+      console.log('PDF instance created');
 
-      const imgWidth = 297; // A4 landscape width in mm
-      const pageHeight = 210; // A4 landscape height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
+      // Add title
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('St. Paul\'s Mar Thoma Church', pdf.internal.pageSize.getWidth() / 2, 10, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      const reportTitle = `Member Report as of ${asOfDate ? formatDate(asOfDate) : new Date().toLocaleDateString()}`;
+      pdf.text(reportTitle, pdf.internal.pageSize.getWidth() / 2, 16, { align: 'center' });
+      
+      if (dateFrom || dateTo) {
+        pdf.setFontSize(8);
+        const period = `Period: ${dateFrom ? formatDate(dateFrom) : 'Beginning'} - ${dateTo ? formatDate(dateTo) : 'Present'}`;
+        pdf.text(period, pdf.internal.pageSize.getWidth() / 2, 21, { align: 'center' });
+      }
 
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      // Prepare table headers
+      const headers = [
+        'Member',
+        ...contributionTypes.map(type => type.label),
+        'Total'
+      ];
 
-      // Add additional pages if content is longer than one page
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      // Prepare table body
+      const body = reportData.map(member => [
+        member.memberName,
+        ...contributionTypes.map(type => 
+          member.contributions[type.key] > 0 ? formatAmount(member.contributions[type.key]) : '-'
+        ),
+        formatAmount(member.total)
+      ]);
+
+      // Add totals row
+      body.push([
+        'TOTAL',
+        ...contributionTypes.map(type => formatAmount(getTotalByType(type.key))),
+        formatAmount(getGrandTotal())
+      ]);
+
+      // Generate table with autoTable
+      console.log('Calling autoTable...');
+      autoTable(pdf, {
+        head: [headers],
+        body: body,
+        startY: dateFrom || dateTo ? 24 : 19,
+        theme: 'grid',
+        styles: {
+          fontSize: 7,
+          cellPadding: 1,
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1,
+        },
+        headStyles: {
+          fillColor: [240, 240, 240],
+          textColor: [50, 50, 50],
+          fontStyle: 'bold',
+          halign: 'center',
+          fontSize: 7,
+          cellPadding: 1.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 35, halign: 'left' }, // Member name column - wider
+          ...Object.fromEntries(
+            contributionTypes.map((_, index) => [
+              index + 1,
+              { cellWidth: 'auto', halign: 'right', minCellWidth: 15 }
+            ])
+          ),
+          [contributionTypes.length + 1]: { 
+            cellWidth: 20, 
+            halign: 'right',
+            fillColor: [245, 245, 245],
+            fontStyle: 'bold'
+          }
+        },
+        didParseCell: function(data) {
+          // Style the totals row
+          if (data.row.index === body.length - 1) {
+            data.cell.styles.fillColor = [220, 240, 255];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+        margin: { top: 10, right: 5, bottom: 10, left: 5 },
+        tableWidth: 'auto',
+        showHead: 'everyPage', // This repeats headers on every page
+      });
+      
+      console.log('AutoTable completed');
+
+      // Add footer
+      const pageCount = pdf.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(8);
+        pdf.setTextColor(128, 128, 128);
+        pdf.text(
+          'For any discrepancies or clarification please contact Raju Chacko (Trustee) 214-597-6568 / Ripson Thomas (Accountant) 202-909-6238',
+          pdf.internal.pageSize.getWidth() / 2,
+          pdf.internal.pageSize.getHeight() - 5,
+          { align: 'center' }
+        );
+        pdf.text(
+          `Page ${i} of ${pageCount}`,
+          pdf.internal.pageSize.getWidth() - 10,
+          pdf.internal.pageSize.getHeight() - 5,
+          { align: 'right' }
+        );
       }
 
       const fileName = `Consolidated_Member_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -147,8 +237,8 @@ const ConsolidatedMemberReport = () => {
     window.print();
   };
 
-  const getTotalByType = (type) => {
-    return reportData.reduce((sum, member) => sum + (member.contributions[type] || 0), 0);
+  const getTotalByType = (typeKey) => {
+    return reportData.reduce((sum, member) => sum + (member.contributions[typeKey] || 0), 0);
   };
 
   const getGrandTotal = () => {
@@ -230,10 +320,10 @@ const ConsolidatedMemberReport = () => {
       </div>
 
       {/* Report Table */}
-      <div ref={reportRef} className="bg-white p-4 rounded-lg shadow print:shadow-none print:p-2">
-        <div className="text-center mb-3">
-          <h2 className="text-lg font-bold text-gray-900">St. Paul's Mar Thoma Church</h2>
-          <h3 className="text-sm font-semibold text-gray-700 mt-1">
+      <div ref={reportRef} className="bg-white p-3 rounded-lg shadow print:shadow-none print:p-1">
+        <div className="text-center mb-2">
+          <h2 className="text-base font-bold text-gray-900">St. Paul's Mar Thoma Church</h2>
+          <h3 className="text-xs font-semibold text-gray-700 mt-1">
             Member Report as of {asOfDate ? formatDate(asOfDate) : new Date().toLocaleDateString()}
           </h3>
           {(dateFrom || dateTo) && (
@@ -249,18 +339,18 @@ const ConsolidatedMemberReport = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-gray-300 text-xs">
+            <table className="min-w-full border-collapse border border-gray-300" style={{ fontSize: '8px' }}>
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-2 py-1 text-left text-xs font-semibold text-gray-700">
+                  <th className="border border-gray-300 px-1 py-0.5 text-left font-semibold text-gray-700" style={{ minWidth: '120px', width: '120px' }}>
                     Member
                   </th>
                   {contributionTypes.map(type => (
-                    <th key={type} className="border border-gray-300 px-2 py-1 text-right text-xs font-semibold text-gray-700">
-                      {type}
+                    <th key={type.key} className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.1' }}>
+                      {type.label}
                     </th>
                   ))}
-                  <th className="border border-gray-300 px-2 py-1 text-right text-xs font-semibold text-gray-900 bg-gray-200">
+                  <th className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-200" style={{ minWidth: '60px' }}>
                     Total
                   </th>
                 </tr>
@@ -268,30 +358,30 @@ const ConsolidatedMemberReport = () => {
               <tbody>
                 {reportData.map((member, index) => (
                   <tr key={member.memberId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 px-2 py-1 text-xs text-gray-900">
+                    <td className="border border-gray-300 px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px' }}>
                       {member.memberName}
                     </td>
                     {contributionTypes.map(type => (
-                      <td key={type} className="border border-gray-300 px-2 py-1 text-xs text-right text-gray-700">
-                        {member.contributions[type] > 0 ? formatAmount(member.contributions[type]) : '-'}
+                      <td key={type.key} className="border border-gray-300 px-1 py-0.5 text-right text-gray-700" style={{ minWidth: '60px', maxWidth: '80px' }}>
+                        {member.contributions[type.key] > 0 ? formatAmount(member.contributions[type.key]) : '-'}
                       </td>
                     ))}
-                    <td className="border border-gray-300 px-2 py-1 text-xs text-right font-semibold text-gray-900 bg-gray-100">
+                    <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-100" style={{ minWidth: '60px' }}>
                       {formatAmount(member.total)}
                     </td>
                   </tr>
                 ))}
                 {/* Totals Row */}
                 <tr className="bg-blue-100 font-bold">
-                  <td className="border border-gray-300 px-2 py-1 text-xs text-gray-900">
+                  <td className="border border-gray-300 px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px' }}>
                     TOTAL
                   </td>
                   {contributionTypes.map(type => (
-                    <td key={type} className="border border-gray-300 px-2 py-1 text-xs text-right text-gray-900">
-                      {formatAmount(getTotalByType(type))}
+                    <td key={type.key} className="border border-gray-300 px-1 py-0.5 text-right text-gray-900" style={{ minWidth: '60px', maxWidth: '80px' }}>
+                      {formatAmount(getTotalByType(type.key))}
                     </td>
                   ))}
-                  <td className="border border-gray-300 px-2 py-1 text-xs text-right text-gray-900 bg-blue-200">
+                  <td className="border border-gray-300 px-1 py-0.5 text-right text-gray-900 bg-blue-200" style={{ minWidth: '60px' }}>
                     {formatAmount(getGrandTotal())}
                   </td>
                 </tr>
@@ -300,8 +390,8 @@ const ConsolidatedMemberReport = () => {
           </div>
         )}
 
-        <div className="mt-2 text-xs text-gray-500 text-center">
-          <p>Generated from church accounting system. For discrepancies, contact church office.</p>
+        <div className="mt-1 text-gray-500 text-center" style={{ fontSize: '9px' }}>
+          <p>For any discrepancies or clarification please contact Raju Chacko (Trustee) 214-597-6568 / Ripson Thomas (Accountant) 202-909-6238</p>
         </div>
       </div>
     </div>
