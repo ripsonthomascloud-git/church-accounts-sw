@@ -165,7 +165,7 @@ const ConsolidatedMemberReport = () => {
         styles: {
           fontSize: 7,
           cellPadding: 1,
-          lineColor: [200, 200, 200],
+          lineColor: [0, 0, 0],
           lineWidth: 0.1,
         },
         headStyles: {
@@ -339,18 +339,18 @@ const ConsolidatedMemberReport = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-gray-300" style={{ fontSize: '8px' }}>
+            <table className="min-w-full border-collapse border border-black" style={{ fontSize: '8px', borderColor: 'black' }}>
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-1 py-0.5 text-left font-semibold text-gray-700" style={{ minWidth: '120px', width: '120px' }}>
+                  <th className="border border-black px-1 py-0.5 text-left font-semibold text-gray-700" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                     Member
                   </th>
                   {contributionTypes.map(type => (
-                    <th key={type.key} className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.1' }}>
+                    <th key={type.key} className="border border-black px-1 py-0.5 text-right font-semibold text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.1', borderColor: 'black' }}>
                       {type.label}
                     </th>
                   ))}
-                  <th className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-200" style={{ minWidth: '60px' }}>
+                  <th className="border border-black px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-200" style={{ minWidth: '60px', borderColor: 'black' }}>
                     Total
                   </th>
                 </tr>
@@ -358,30 +358,30 @@ const ConsolidatedMemberReport = () => {
               <tbody>
                 {reportData.map((member, index) => (
                   <tr key={member.memberId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-gray-300 px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px' }}>
+                    <td className="border border-black px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                       {member.memberName}
                     </td>
                     {contributionTypes.map(type => (
-                      <td key={type.key} className="border border-gray-300 px-1 py-0.5 text-right text-gray-700" style={{ minWidth: '60px', maxWidth: '80px' }}>
+                      <td key={type.key} className="border border-black px-1 py-0.5 text-right text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
                         {member.contributions[type.key] > 0 ? formatAmount(member.contributions[type.key]) : '-'}
                       </td>
                     ))}
-                    <td className="border border-gray-300 px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-100" style={{ minWidth: '60px' }}>
+                    <td className="border border-black px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-100" style={{ minWidth: '60px', borderColor: 'black' }}>
                       {formatAmount(member.total)}
                     </td>
                   </tr>
                 ))}
                 {/* Totals Row */}
                 <tr className="bg-blue-100 font-bold">
-                  <td className="border border-gray-300 px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px' }}>
+                  <td className="border border-black px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                     TOTAL
                   </td>
                   {contributionTypes.map(type => (
-                    <td key={type.key} className="border border-gray-300 px-1 py-0.5 text-right text-gray-900" style={{ minWidth: '60px', maxWidth: '80px' }}>
+                    <td key={type.key} className="border border-black px-1 py-0.5 text-right text-gray-900" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
                       {formatAmount(getTotalByType(type.key))}
                     </td>
                   ))}
-                  <td className="border border-gray-300 px-1 py-0.5 text-right text-gray-900 bg-blue-200" style={{ minWidth: '60px' }}>
+                  <td className="border border-black px-1 py-0.5 text-right text-gray-900 bg-blue-200" style={{ minWidth: '60px', borderColor: 'black' }}>
                     {formatAmount(getGrandTotal())}
                   </td>
                 </tr>
