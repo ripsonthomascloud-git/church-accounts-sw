@@ -42,18 +42,62 @@ const ConsolidatedMemberReport = () => {
       });
     }
 
-    // Get all unique contribution types (category - subcategory)
+    // Define aggregation groups
+    const aggregationGroups = {
+      'Building Fund': {
+        categories: ['BUILDING ACCOUNT', 'Building Fund'],
+        subCategories: ['BUILDING ACCOUNT', 'Building Fund', 'Building Maintenance', 'Building Repair']
+      },
+      'Community Outreach': {
+        categories: ['COMMUNITY OUTREACH', 'Community Outreach'],
+        subCategories: ['COMMUNITY OUTREACH', 'Community Outreach', 'Charity', 'Mission', 'Outreach Programs']
+      },
+      'Other Income': {
+        categories: ['OTHER INCOME', 'Other Income', 'DONATIONS'],
+        subCategories: ['OTHER INCOME', 'Other Income', 'Miscellaneous', 'Donations', 'Gifts', 'Donations-Other', 'DONATIONS - Other']
+      }
+    };
+
+    // Get all unique contribution types with aggregation
     const typesMap = new Map();
+    const aggregatedTypes = [];
+
+    // First, add aggregated categories
+    Object.entries(aggregationGroups).forEach(([groupName, groupConfig]) => {
+      aggregatedTypes.push({
+        key: groupName,
+        label: groupName,
+        isAggregated: true,
+        categories: groupConfig.categories,
+        subCategories: groupConfig.subCategories
+      });
+    });
+
+    // Then, add remaining individual categories that don't belong to aggregation groups
     filteredIncome.forEach(transaction => {
       if (transaction.category && transaction.subCategory) {
-        const key = transaction.subCategory;
-        const label = `${transaction.category} - ${transaction.subCategory}`;
-        typesMap.set(key, label);
+        // Check if this transaction belongs to any aggregation group
+        const isInAggregatedGroup = Object.values(aggregationGroups).some(group => 
+          group.categories.includes(transaction.category) || 
+          group.subCategories.includes(transaction.subCategory)
+        );
+
+        if (!isInAggregatedGroup) {
+          const key = transaction.subCategory;
+          const label = `${transaction.category} - ${transaction.subCategory}`;
+          if (!typesMap.has(key)) {
+            typesMap.set(key, label);
+          }
+        }
       }
     });
-    const sortedTypes = Array.from(typesMap.entries())
+
+    // Combine aggregated types with individual types
+    const individualTypes = Array.from(typesMap.entries())
       .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([key, label]) => ({ key, label }));
+      .map(([key, label]) => ({ key, label, isAggregated: false }));
+
+    const sortedTypes = [...aggregatedTypes, ...individualTypes];
     setContributionTypes(sortedTypes);
 
     // Build report data for each member
@@ -65,10 +109,39 @@ const ConsolidatedMemberReport = () => {
       const contributionsByType = {};
       let total = 0;
 
-      sortedTypes.forEach(type => {
-        const typeTotal = memberContributions
-          .filter(t => t.subCategory === type.key)
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+      // Track all processed transactions to avoid double counting across all aggregated groups
+    const globallyProcessedTransactions = new Set();
+    
+    sortedTypes.forEach(type => {
+        let typeTotal = 0;
+        
+        if (type.isAggregated) {
+          // For aggregated types, sum all transactions that match the group criteria
+          // Only count transactions that haven't been processed by previous groups
+          typeTotal = memberContributions
+            .filter(t => {
+              // Skip if already processed by another aggregated group
+              if (globallyProcessedTransactions.has(t.id)) return false;
+              
+              // Check if transaction matches this group
+              const matchesGroup = type.categories.includes(t.category) || 
+                                  type.subCategories.includes(t.subCategory);
+              
+              if (matchesGroup) {
+                globallyProcessedTransactions.add(t.id);
+              }
+              
+              return matchesGroup;
+            })
+            .reduce((sum, t) => sum + (t.amount || 0), 0);
+        } else {
+          // For individual types, use the original logic
+          // Only include transactions not processed by aggregated groups
+          typeTotal = memberContributions
+            .filter(t => t.subCategory === type.key && !globallyProcessedTransactions.has(t.id))
+            .reduce((sum, t) => sum + (t.amount || 0), 0);
+        }
+        
         contributionsByType[type.key] = typeTotal;
         total += typeTotal;
       });
@@ -80,7 +153,6 @@ const ConsolidatedMemberReport = () => {
         total: total
       };
     })
-    .filter(m => m.total > 0) // Only include members with contributions
     .sort((a, b) => a.memberName.localeCompare(b.memberName)); // Sort alphabetically by name
 
     setReportData(data);
@@ -117,17 +189,18 @@ const ConsolidatedMemberReport = () => {
       console.log('PDF instance created');
 
       // Add title
-      pdf.setFontSize(14);
+      pdf.setFontSize(16);
       pdf.setFont('helvetica', 'bold');
       pdf.text('St. Paul\'s Mar Thoma Church', pdf.internal.pageSize.getWidth() / 2, 10, { align: 'center' });
       
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
       const reportTitle = `Member Report as of ${asOfDate ? formatDate(asOfDate) : new Date().toLocaleDateString()}`;
       pdf.text(reportTitle, pdf.internal.pageSize.getWidth() / 2, 16, { align: 'center' });
       
       if (dateFrom || dateTo) {
-        pdf.setFontSize(8);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
         const period = `Period: ${dateFrom ? formatDate(dateFrom) : 'Beginning'} - ${dateTo ? formatDate(dateTo) : 'Present'}`;
         pdf.text(period, pdf.internal.pageSize.getWidth() / 2, 21, { align: 'center' });
       }
@@ -143,7 +216,7 @@ const ConsolidatedMemberReport = () => {
       const body = reportData.map(member => [
         member.memberName,
         ...contributionTypes.map(type => 
-          member.contributions[type.key] > 0 ? formatAmount(member.contributions[type.key]) : '-'
+          formatAmount(member.contributions[type.key] || 0)
         ),
         formatAmount(member.total)
       ]);
@@ -163,29 +236,29 @@ const ConsolidatedMemberReport = () => {
         startY: dateFrom || dateTo ? 24 : 19,
         theme: 'grid',
         styles: {
-          fontSize: 7,
-          cellPadding: 1,
+          fontSize: 8,
+          cellPadding: 1.5,
           lineColor: [0, 0, 0],
           lineWidth: 0.1,
         },
         headStyles: {
           fillColor: [240, 240, 240],
-          textColor: [50, 50, 50],
+          textColor: [30, 30, 30],
           fontStyle: 'bold',
           halign: 'center',
-          fontSize: 7,
+          fontSize: 8,
           cellPadding: 1.5,
         },
         columnStyles: {
-          0: { cellWidth: 35, halign: 'left' }, // Member name column - wider
+          0: { cellWidth: 32, halign: 'left', fontStyle: 'bold' }, // Member name column - slightly narrower
           ...Object.fromEntries(
             contributionTypes.map((_, index) => [
               index + 1,
-              { cellWidth: 'auto', halign: 'right', minCellWidth: 15 }
+              { cellWidth: 'auto', halign: 'right', minCellWidth: 14, fontStyle: 'bold' }
             ])
           ),
           [contributionTypes.length + 1]: { 
-            cellWidth: 20, 
+            cellWidth: 18, 
             halign: 'right',
             fillColor: [245, 245, 245],
             fontStyle: 'bold'
@@ -198,7 +271,8 @@ const ConsolidatedMemberReport = () => {
             data.cell.styles.fontStyle = 'bold';
           }
         },
-        margin: { top: 10, right: 5, bottom: 10, left: 5 },
+        rowPageBreak: 'avoid', // Prevent rows from breaking across pages
+        margin: { top: 10, right: 3, bottom: 15, left: 3 },
         tableWidth: 'auto',
         showHead: 'everyPage', // This repeats headers on every page
       });
@@ -210,17 +284,19 @@ const ConsolidatedMemberReport = () => {
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
-        pdf.setTextColor(128, 128, 128);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setTextColor(80, 80, 80);
         pdf.text(
           'For any discrepancies or clarification please contact Raju Chacko (Trustee) 214-597-6568 / Ripson Thomas (Accountant) 202-909-6238',
           pdf.internal.pageSize.getWidth() / 2,
-          pdf.internal.pageSize.getHeight() - 5,
+          pdf.internal.pageSize.getHeight() - 4,
           { align: 'center' }
         );
+        pdf.setFont('helvetica', 'normal');
         pdf.text(
           `Page ${i} of ${pageCount}`,
-          pdf.internal.pageSize.getWidth() - 10,
-          pdf.internal.pageSize.getHeight() - 5,
+          pdf.internal.pageSize.getWidth() - 8,
+          pdf.internal.pageSize.getHeight() - 4,
           { align: 'right' }
         );
       }
@@ -339,18 +415,18 @@ const ConsolidatedMemberReport = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full border-collapse border border-black" style={{ fontSize: '8px', borderColor: 'black' }}>
+            <table className="min-w-full border-collapse border border-black" style={{ fontSize: '10px', borderColor: 'black' }}>
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border border-black px-1 py-0.5 text-left font-semibold text-gray-700" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
+                  <th className="border border-black px-2 py-1 text-left font-bold text-gray-800" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                     Member
                   </th>
                   {contributionTypes.map(type => (
-                    <th key={type.key} className="border border-black px-1 py-0.5 text-right font-semibold text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.1', borderColor: 'black' }}>
+                    <th key={type.key} className="border border-black px-2 py-1 text-right font-bold text-gray-800" style={{ minWidth: '60px', maxWidth: '80px', whiteSpace: 'normal', wordWrap: 'break-word', lineHeight: '1.2', borderColor: 'black' }}>
                       {type.label}
                     </th>
                   ))}
-                  <th className="border border-black px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-200" style={{ minWidth: '60px', borderColor: 'black' }}>
+                  <th className="border border-black px-2 py-1 text-right font-bold text-gray-900 bg-gray-200" style={{ minWidth: '60px', borderColor: 'black' }}>
                     Total
                   </th>
                 </tr>
@@ -358,30 +434,30 @@ const ConsolidatedMemberReport = () => {
               <tbody>
                 {reportData.map((member, index) => (
                   <tr key={member.memberId} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                    <td className="border border-black px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
+                    <td className="border border-black px-2 py-1 font-semibold text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                       {member.memberName}
                     </td>
                     {contributionTypes.map(type => (
-                      <td key={type.key} className="border border-black px-1 py-0.5 text-right text-gray-700" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
-                        {member.contributions[type.key] > 0 ? formatAmount(member.contributions[type.key]) : '-'}
+                      <td key={type.key} className="border border-black px-2 py-1 text-right font-medium text-gray-800" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
+                        {formatAmount(member.contributions[type.key] || 0)}
                       </td>
                     ))}
-                    <td className="border border-black px-1 py-0.5 text-right font-semibold text-gray-900 bg-gray-100" style={{ minWidth: '60px', borderColor: 'black' }}>
+                    <td className="border border-black px-2 py-1 text-right font-bold text-gray-900 bg-gray-100" style={{ minWidth: '60px', borderColor: 'black' }}>
                       {formatAmount(member.total)}
                     </td>
                   </tr>
                 ))}
                 {/* Totals Row */}
                 <tr className="bg-blue-100 font-bold">
-                  <td className="border border-black px-1 py-0.5 text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
+                  <td className="border border-black px-2 py-1 font-bold text-gray-900" style={{ minWidth: '120px', width: '120px', borderColor: 'black' }}>
                     TOTAL
                   </td>
                   {contributionTypes.map(type => (
-                    <td key={type.key} className="border border-black px-1 py-0.5 text-right text-gray-900" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
+                    <td key={type.key} className="border border-black px-2 py-1 text-right font-bold text-gray-900" style={{ minWidth: '60px', maxWidth: '80px', borderColor: 'black' }}>
                       {formatAmount(getTotalByType(type.key))}
                     </td>
                   ))}
-                  <td className="border border-black px-1 py-0.5 text-right text-gray-900 bg-blue-200" style={{ minWidth: '60px', borderColor: 'black' }}>
+                  <td className="border border-black px-2 py-1 text-right font-bold text-gray-900 bg-blue-200" style={{ minWidth: '60px', borderColor: 'black' }}>
                     {formatAmount(getGrandTotal())}
                   </td>
                 </tr>
@@ -390,7 +466,7 @@ const ConsolidatedMemberReport = () => {
           </div>
         )}
 
-        <div className="mt-1 text-gray-500 text-center" style={{ fontSize: '9px' }}>
+        <div className="mt-2 text-gray-600 text-center" style={{ fontSize: '10px' }}>
           <p>For any discrepancies or clarification please contact Raju Chacko (Trustee) 214-597-6568 / Ripson Thomas (Accountant) 202-909-6238</p>
         </div>
       </div>
