@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MemberContributionReport from '../components/Reports/MemberContributionReport';
 import ExpenseSummaryReport from '../components/Reports/ExpenseSummaryReport';
 import IncomeSummaryReport from '../components/Reports/IncomeSummaryReport';
+import UnifiedBudgetVsActualCharts from '../components/Reports/UnifiedBudgetVsActualCharts';
 import Button from '../components/common/Button';
 
 const Reports = () => {
@@ -71,6 +72,16 @@ const Reports = () => {
           >
             Expense Summary - Building
           </button>
+          <button
+            onClick={() => setActiveTab('budget-vs-actual')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+              activeTab === 'budget-vs-actual'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Budget vs Actual - All Charts
+          </button>
         </nav>
       </div>
 
@@ -83,6 +94,10 @@ const Reports = () => {
           <IncomeSummaryReport accountType="Building" />
         ) : activeTab === 'expenses-operating' ? (
           <ExpenseSummaryReport accountType="Operating" />
+        ) : activeTab === 'expenses-building' ? (
+          <ExpenseSummaryReport accountType="Building" />
+        ) : activeTab === 'budget-vs-actual' ? (
+          <UnifiedBudgetVsActualCharts />
         ) : (
           <ExpenseSummaryReport accountType="Building" />
         )}

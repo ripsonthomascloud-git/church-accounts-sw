@@ -12,8 +12,15 @@ export const useBudgets = (type = 'income') => {
     try {
       setLoading(true);
       const data = await getDocuments(collectionName, 'year');
+      
+      // Debug: Log all budgets before filtering
+      console.log(`All budgets in database (${type}):`, data);
+      console.log(`Budget types found:`, [...new Set(data.map(b => b.type))]);
+      
       // Filter by type
       const filteredData = data.filter(budget => budget.type === type);
+      console.log(`Filtered budgets for type '${type}':`, filteredData);
+      
       setBudgets(filteredData);
       setError(null);
     } catch (err) {
