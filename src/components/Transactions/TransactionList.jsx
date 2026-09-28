@@ -2,12 +2,15 @@ import { useState, useEffect } from 'react';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 import { updateDocument, getDocument } from '../../services/firebase';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', members = [], categories = [] }) => {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterMember, setFilterMember] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [filterSubCategory, setFilterSubCategory] = useState('');
   const [filterReconciled, setFilterReconciled] = useState('');
   const [filterAccountType, setFilterAccountType] = useState(() => {
     return localStorage.getItem('transactionList_filterAccountType') || '';
@@ -48,19 +51,28 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     return null;
   };
 
-  const transactionCategories = [...new Set(transactions.map(t => t.category))];
+  const transactionCategories = [...new Set(transactions.map(t => t.category).filter(Boolean))];
 
   // Get distinct category names from the categories array
   const distinctCategoryNames = [...new Set(categories.map(c => c.name))];
 
-  // Get subcategories for a selected category
+  // Get subcategories for a selected category (from categories prop + actual transaction data)
   const getSubCategoriesForCategory = (categoryName) => {
     if (!categoryName) return [];
-    return categories
+    const fromCategories = categories
       .filter(c => c.name === categoryName || c.category === categoryName)
       .map(c => c.subCategory)
       .filter(Boolean);
+    const fromTransactions = transactions
+      .filter(t => t.category === categoryName && t.subCategory)
+      .map(t => t.subCategory);
+    return [...new Set([...fromCategories, ...fromTransactions])];
   };
+
+  // All subcategories available under the currently selected category filter
+  const availableSubCategories = filterCategory
+    ? getSubCategoriesForCategory(filterCategory)
+    : [...new Set(transactions.map(t => t.subCategory).filter(Boolean))];
 
   const filteredTransactions = transactions.filter(transaction => {
     // Filter by category
@@ -111,6 +123,11 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
 
     // Filter by account type
     if (filterAccountType && transaction.accountType !== filterAccountType) {
+      return false;
+    }
+
+    // Filter by subcategory
+    if (filterSubCategory && transaction.subCategory !== filterSubCategory) {
       return false;
     }
 
@@ -226,11 +243,69 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
 
   const totalAmount = filteredTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const typeLabel = type === 'income' ? 'Income' : 'Expense';
+
+    // Build filter summary string
+    const filterParts = [];
+    if (filterAccountType) filterParts.push(`Account: ${filterAccountType}`);
+    if (filterCategory) filterParts.push(`Category: ${filterCategory}`);
+    if (filterSubCategory) filterParts.push(`Subcategory: ${filterSubCategory}`);
+    if (filterMember) filterParts.push(`Member: ${filterMember}`);
+    if (filterMonth) filterParts.push(`Month: ${filterMonth}`);
+    if (filterDate) filterParts.push(`Date: ${filterDate}`);
+    if (filterReconciled) filterParts.push(`Reconciled: ${filterReconciled}`);
+    const filterSummary = filterParts.length > 0 ? filterParts.join('  |  ') : 'None';
+
+    doc.setFontSize(16);
+    doc.text(`${typeLabel} Transactions`, 14, 15);
+    doc.setFontSize(9);
+    doc.text(`Filters: ${filterSummary}`, 14, 23);
+    doc.text(`Total: ${formatAmount(totalAmount)}   |   Records: ${filteredTransactions.length}`, 14, 29);
+
+    const memberPayeeLabel = type === 'income' ? 'Member' : 'Payee';
+    const head = [['Date', 'Category', 'Subcategory', 'Description', memberPayeeLabel, 'Amount', 'Account', 'Reconciled']];
+    const body = filteredTransactions.map(t => [
+      formatDate(t.date),
+      t.category || '-',
+      t.subCategory || '-',
+      t.description || '-',
+      type === 'income' ? (getMemberName(t) || '-') : (t.payeeName || '-'),
+      formatAmount(t.amount),
+      t.accountType || 'Operating',
+      t.isReconciled ? 'Yes' : 'No',
+    ]);
+
+    autoTable(doc, {
+      head,
+      body,
+      startY: 34,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+    });
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    doc.save(`${typeLabel}_transactions_${dateStr}.pdf`);
+  };
+
   return (
     <div>
       <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-        <h3 className="text-sm font-semibold text-gray-700 mb-2">Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export PDF
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Account Type</label>
             <select
@@ -248,7 +323,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => { setFilterCategory(e.target.value); setFilterSubCategory(''); }}
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
               <option value="">All Categories</option>
@@ -290,6 +365,20 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
+            <select
+              value={filterSubCategory}
+              onChange={(e) => setFilterSubCategory(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All Subcategories</option>
+              {availableSubCategories.map(sub => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Reconciled</label>
             <select
               value={filterReconciled}
@@ -303,11 +392,12 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
         </div>
 
-        {(filterAccountType || filterCategory || filterMember || filterMonth || filterDate || filterReconciled) && (
+        {(filterAccountType || filterCategory || filterSubCategory || filterMember || filterMonth || filterDate || filterReconciled) && (
           <button
             onClick={() => {
               setFilterAccountType('');
               setFilterCategory('');
+              setFilterSubCategory('');
               setFilterMember('');
               setFilterMonth('');
               setFilterDate('');
