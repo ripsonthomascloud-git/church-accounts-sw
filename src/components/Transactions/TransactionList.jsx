@@ -10,6 +10,8 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
   const [filterMember, setFilterMember] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDate, setFilterDate] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
   const [filterSubCategory, setFilterSubCategory] = useState('');
   const [filterReconciled, setFilterReconciled] = useState('');
   const [filterAccountType, setFilterAccountType] = useState(() => {
@@ -111,6 +113,15 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
       } else {
         return false;
       }
+    }
+
+    // Filter by date range
+    if (filterStartDate || filterEndDate) {
+      const raw = transaction.date?.toDate ? transaction.date.toDate() : transaction.date ? new Date(transaction.date) : null;
+      if (!raw) return false;
+      const txDate = raw.toISOString().split('T')[0];
+      if (filterStartDate && txDate < filterStartDate) return false;
+      if (filterEndDate && txDate > filterEndDate) return false;
     }
 
     // Filter by reconciliation status
@@ -254,7 +265,8 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     if (filterSubCategory) filterParts.push(`Subcategory: ${filterSubCategory}`);
     if (filterMember) filterParts.push(`Member: ${filterMember}`);
     if (filterMonth) filterParts.push(`Month: ${filterMonth}`);
-    if (filterDate) filterParts.push(`Date: ${filterDate}`);
+    if (filterStartDate) filterParts.push(`From: ${filterStartDate}`);
+    if (filterEndDate) filterParts.push(`To: ${filterEndDate}`);
     if (filterReconciled) filterParts.push(`Reconciled: ${filterReconciled}`);
     const filterSummary = filterParts.length > 0 ? filterParts.join('  |  ') : 'None';
 
@@ -290,22 +302,60 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     doc.save(`${typeLabel}_transactions_${dateStr}.pdf`);
   };
 
+  const handleExportCSV = () => {
+    const typeLabel = type === 'income' ? 'Income' : 'Expense';
+    const memberPayeeLabel = type === 'income' ? 'Member' : 'Payee';
+    const headers = ['Date', 'Category', 'Subcategory', 'Description', memberPayeeLabel, 'Amount', 'Account Type', 'Reconciled'];
+    const rows = filteredTransactions.map(t => [
+      formatDate(t.date),
+      t.category || '',
+      t.subCategory || '',
+      (t.description || '').replace(/"/g, '""'),
+      type === 'income' ? (getMemberName(t) || '') : (t.payeeName || ''),
+      t.amount != null ? t.amount.toFixed(2) : '0.00',
+      t.accountType || 'Operating',
+      t.isReconciled ? 'Yes' : 'No',
+    ]);
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.download = `${typeLabel}_transactions_${dateStr}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <div className="mb-4 bg-gray-50 p-3 rounded-lg">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
-          <button
-            onClick={handleExportPDF}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Export PDF
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export PDF
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Account Type</label>
             <select
@@ -334,6 +384,20 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
 
           <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
+            <select
+              value={filterSubCategory}
+              onChange={(e) => setFilterSubCategory(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All Subcategories</option>
+              {availableSubCategories.map(sub => (
+                <option key={sub} value={sub}>{sub}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Member Name</label>
             <input
               type="text"
@@ -355,27 +419,25 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
             <input
               type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              value={filterStartDate}
+              max={filterEndDate || undefined}
+              onChange={(e) => setFilterStartDate(e.target.value)}
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
-            <select
-              value={filterSubCategory}
-              onChange={(e) => setFilterSubCategory(e.target.value)}
+            <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
+            <input
+              type="date"
+              value={filterEndDate}
+              min={filterStartDate || undefined}
+              onChange={(e) => setFilterEndDate(e.target.value)}
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            >
-              <option value="">All Subcategories</option>
-              {availableSubCategories.map(sub => (
-                <option key={sub} value={sub}>{sub}</option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>
@@ -392,7 +454,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
           </div>
         </div>
 
-        {(filterAccountType || filterCategory || filterSubCategory || filterMember || filterMonth || filterDate || filterReconciled) && (
+        {(filterAccountType || filterCategory || filterSubCategory || filterMember || filterMonth || filterStartDate || filterEndDate || filterReconciled) && (
           <button
             onClick={() => {
               setFilterAccountType('');
@@ -400,7 +462,8 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               setFilterSubCategory('');
               setFilterMember('');
               setFilterMonth('');
-              setFilterDate('');
+              setFilterStartDate('');
+              setFilterEndDate('');
               setFilterReconciled('');
             }}
             className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
