@@ -37,11 +37,12 @@ const Transactions = () => {
   } = useTransactions('expenses');
 
   const handleAddTransaction = async (transactionData) => {
+    const items = Array.isArray(transactionData) ? transactionData : [transactionData];
     if (activeTab === 'income') {
-      await addIncome(transactionData);
+      for (const item of items) await addIncome(item);
       await refreshIncome();
     } else {
-      await addExpense(transactionData);
+      for (const item of items) await addExpense(item);
       await refreshExpenses();
     }
     setShowAddModal(false);
