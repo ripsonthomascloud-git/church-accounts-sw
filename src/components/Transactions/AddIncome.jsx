@@ -16,13 +16,13 @@ const getCentralDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-const AddIncome = ({ onAdd, onCancel, categories, members }) => {
+const AddIncome = ({ onAdd, onCancel, categories, members, lastDate }) => {
   const [formData, setFormData] = useState({
     amount: '',
     category: '',
     subCategory: '',
     description: '',
-    date: getCentralDate(),
+    date: lastDate || getCentralDate(),
     memberId: '',
     memberName: '',
     accountType: 'Operating',
@@ -215,7 +215,7 @@ const AddIncome = ({ onAdd, onCancel, categories, members }) => {
         category: '',
         subCategory: '',
         description: '',
-        date: getCentralDate(),
+        date: lastDate || getCentralDate(),
         memberId: '',
         memberName: '',
         accountType: 'Operating',

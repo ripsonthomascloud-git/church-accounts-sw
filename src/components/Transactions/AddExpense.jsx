@@ -2,19 +2,30 @@ import { useState, useMemo } from 'react';
 import Input from '../common/Input';
 import Button from '../common/Button';
 
-const AddExpense = ({ onAdd, onCancel, categories, payees }) => {
+const AddExpense = ({ onAdd, onCancel, categories, payees, expenseTransactions = [], lastDate }) => {
+  const getDefaultDate = () => {
+    if (lastDate) return lastDate;
+    const now = new Date();
+    const centralDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const year = centralDate.getFullYear();
+    const month = String(centralDate.getMonth() + 1).padStart(2, '0');
+    const day = String(centralDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const [formData, setFormData] = useState({
     amount: '',
     category: '',
     subCategory: '',
     description: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getDefaultDate(),
     payeeId: '',
     payeeName: '',
     accountType: 'Operating',
   });
   const [payeeSearch, setPayeeSearch] = useState('');
   const [showPayeeDropdown, setShowPayeeDropdown] = useState(false);
+  const [autoFilledCategory, setAutoFilledCategory] = useState(false);
 
   // Get unique categories
   const uniqueCategories = useMemo(() => {
@@ -44,8 +55,10 @@ const AddExpense = ({ onAdd, onCancel, categories, payees }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'category') {
+      setAutoFilledCategory(false);
       setFormData(prev => ({ ...prev, category: value, subCategory: '' }));
     } else {
+      if (name === 'subCategory') setAutoFilledCategory(false);
       setFormData(prev => ({ ...prev, [name]: value }));
     }
   };
@@ -55,17 +68,35 @@ const AddExpense = ({ onAdd, onCancel, categories, payees }) => {
     setPayeeSearch(value);
     setShowPayeeDropdown(true);
     if (!value) {
+      setAutoFilledCategory(false);
       setFormData(prev => ({ ...prev, payeeId: '', payeeName: '' }));
     }
   };
 
   const handlePayeeSelect = (payee) => {
     setPayeeSearch(payee.name);
+
+    // Find the most recent expense for this payee to auto-populate category/subCategory
+    const payeeExpenses = expenseTransactions
+      .filter(t => t.payeeId === payee.id && t.category)
+      .sort((a, b) => {
+        const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+        const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+        return dateB - dateA;
+      });
+
+    const lastExpense = payeeExpenses[0];
+
     setFormData(prev => ({
       ...prev,
       payeeId: payee.id,
-      payeeName: payee.name
+      payeeName: payee.name,
+      ...(lastExpense && {
+        category: lastExpense.category || prev.category,
+        subCategory: lastExpense.subCategory || prev.subCategory,
+      }),
     }));
+    setAutoFilledCategory(!!lastExpense);
     setShowPayeeDropdown(false);
   };
 
@@ -78,7 +109,7 @@ const AddExpense = ({ onAdd, onCancel, categories, payees }) => {
         category: '',
         subCategory: '',
         description: '',
-        date: new Date().toISOString().split('T')[0],
+        date: getDefaultDate(),
         payeeId: '',
         payeeName: '',
         accountType: 'Operating',
@@ -138,6 +169,12 @@ const AddExpense = ({ onAdd, onCancel, categories, payees }) => {
           </div>
         )}
       </div>
+
+      {autoFilledCategory && (
+        <div className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded px-2 py-1">
+          Category auto-filled from last expense with this payee
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div className="mb-4">

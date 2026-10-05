@@ -9,6 +9,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterDescription, setFilterDescription] = useState('');
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [commentValue, setCommentValue] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
@@ -366,6 +367,17 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
       return false;
     }
 
+    // Filter by description (like search) — normalize whitespace to handle CSV import artifacts
+    if (filterDescription) {
+      const normalizeStr = (str) => str.replace(/\s+/g, ' ').trim().toLowerCase();
+      const search = normalizeStr(filterDescription);
+      const desc = normalizeStr(statement.description || '');
+      const details = normalizeStr(statement.details || '');
+      if (!desc.includes(search) && !details.includes(search)) {
+        return false;
+      }
+    }
+
     // Filter by reconciliation status
     if (filterStatus === 'reconciled' && !statement.isReconciled) {
       return false;
@@ -467,7 +479,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
             <input
@@ -487,9 +499,20 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+            <input
+              type="text"
+              placeholder="Search description..."
+              value={filterDescription}
+              onChange={(e) => setFilterDescription(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
         </div>
 
-        {(filterAccountType || filterStatus || filterMonth || filterDateFrom || filterDateTo) && (
+        {(filterAccountType || filterStatus || filterMonth || filterDateFrom || filterDateTo || filterDescription) && (
           <button
             onClick={() => {
               setFilterAccountType('');
@@ -497,6 +520,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
               setFilterMonth('');
               setFilterDateFrom('');
               setFilterDateTo('');
+              setFilterDescription('');
             }}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
           >

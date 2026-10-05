@@ -36,6 +36,21 @@ const Transactions = () => {
     refreshTransactions: refreshExpenses,
   } = useTransactions('expenses');
 
+  // Get the date of the most recent saved transaction as YYYY-MM-DD, falling back to today
+  const getLastDate = (transactions) => {
+    if (!transactions || transactions.length === 0) return null;
+    const sorted = [...transactions].sort((a, b) => {
+      const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date);
+      const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date);
+      return dateB - dateA;
+    });
+    const d = sorted[0].date?.toDate ? sorted[0].date.toDate() : new Date(sorted[0].date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleAddTransaction = async (transactionData) => {
     const items = Array.isArray(transactionData) ? transactionData : [transactionData];
     if (activeTab === 'income') {
@@ -123,6 +138,7 @@ const Transactions = () => {
             onCancel={() => setShowAddModal(false)}
             categories={incomeCategories}
             members={members}
+            lastDate={getLastDate(incomeTransactions)}
           />
         ) : (
           <AddExpense
@@ -130,6 +146,8 @@ const Transactions = () => {
             onCancel={() => setShowAddModal(false)}
             categories={expenseCategories}
             payees={payees}
+            expenseTransactions={expenseTransactions}
+            lastDate={getLastDate(expenseTransactions)}
           />
         )}
       </Modal>
