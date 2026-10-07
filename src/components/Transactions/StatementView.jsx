@@ -10,6 +10,9 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
   const [filterBankMatch, setFilterBankMatch] = useState(''); // '' | 'matched' | 'unmatched'
   const [filterBankOnly, setFilterBankOnly] = useState('include'); // 'include' | 'hide' | 'only'
   const [filterDescription, setFilterDescription] = useState('');
+  const [filterType, setFilterType] = useState(''); // '' | 'income' | 'expense'
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterSubCategory, setFilterSubCategory] = useState('');
   // 'running' = date-by-date ledger, 'monthly' = monthly summary
   const [viewMode, setViewMode] = useState('running');
   // Checkbox selection: Set of row keys ("txType-id")
@@ -101,6 +104,28 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
       return ca - cb;
     });
   }, [incomeTransactions, expenseTransactions]);
+
+  // Derive unique sorted category/subcategory options from allRows (respects account + type filter)
+  const categoryOptions = useMemo(() => {
+    const seen = new Set();
+    allRows.forEach(r => {
+      if (filterAccountType && normalizeAccountType(r.accountType) !== filterAccountType) return;
+      if (filterType && r.txType !== filterType) return;
+      if (r.category) seen.add(r.category);
+    });
+    return [...seen].sort();
+  }, [allRows, filterAccountType, filterType]);
+
+  const subCategoryOptions = useMemo(() => {
+    const seen = new Set();
+    allRows.forEach(r => {
+      if (filterAccountType && normalizeAccountType(r.accountType) !== filterAccountType) return;
+      if (filterType && r.txType !== filterType) return;
+      if (filterCategory && r.category !== filterCategory) return;
+      if (r.subCategory) seen.add(r.subCategory);
+    });
+    return [...seen].sort();
+  }, [allRows, filterAccountType, filterType, filterCategory]);
 
   // Count how many bank statement entries exist per key (date_absAmt_acct)
   const bankStatementLookup = useMemo(() => {
@@ -210,15 +235,18 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
   // Apply filters
   const filteredRows = useMemo(() => {
     return allRows.filter(row => {
-      if (filterAccountType && row.accountType !== filterAccountType) return false;
+      if (filterAccountType && normalizeAccountType(row.accountType) !== filterAccountType) return false;
       const dateStr = getDateStr(row.date);
       const monthStr = getMonthStr(row.date);
       if (filterMonth && monthStr !== filterMonth) return false;
       if (filterStartDate && dateStr < filterStartDate) return false;
       if (filterEndDate && dateStr > filterEndDate) return false;
+      if (filterType && row.txType !== filterType) return false;
+      if (filterCategory && row.category !== filterCategory) return false;
+      if (filterSubCategory && row.subCategory !== filterSubCategory) return false;
       return true;
     });
-  }, [allRows, filterAccountType, filterMonth, filterStartDate, filterEndDate]);
+  }, [allRows, filterAccountType, filterMonth, filterStartDate, filterEndDate, filterType, filterCategory, filterSubCategory]);
 
   // Running balance rows
   // Opening balance = configured opening balance for the earliest year in data
@@ -372,7 +400,7 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
     });
   }, [monthlySummary, filterMonth, filterStartDate, filterEndDate]);
 
-  const hasFilters = (filterAccountType && filterAccountType !== 'Operating') || filterMonth || filterStartDate || filterEndDate || filterBankMatch || filterBankOnly !== 'include' || filterDescription.trim();
+  const hasFilters = (filterAccountType && filterAccountType !== 'Operating') || filterMonth || filterStartDate || filterEndDate || filterBankMatch || filterBankOnly !== 'include' || filterDescription.trim() || filterType || filterCategory || filterSubCategory;
 
   const clearFilters = () => {
     setFilterAccountType('Operating');
@@ -382,6 +410,9 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
     setFilterBankMatch('');
     setFilterBankOnly('include');
     setFilterDescription('');
+    setFilterType('');
+    setFilterCategory('');
+    setFilterSubCategory('');
   };
 
   // Row key used for checkbox identity
@@ -644,6 +675,48 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
               placeholder="Search description..."
               className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
+          </div>
+        </div>
+        {/* Second filter row: Type, Category, SubCategory */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
+            <select
+              value={filterType}
+              onChange={(e) => { setFilterType(e.target.value); setFilterCategory(''); setFilterSubCategory(''); }}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All Types</option>
+              <option value="income">Income</option>
+              <option value="expense">Expense</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+            <select
+              value={filterCategory}
+              onChange={(e) => { setFilterCategory(e.target.value); setFilterSubCategory(''); }}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All Categories</option>
+              {categoryOptions.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Subcategory</label>
+            <select
+              value={filterSubCategory}
+              onChange={(e) => setFilterSubCategory(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              disabled={!filterCategory}
+            >
+              <option value="">All Subcategories</option>
+              {subCategoryOptions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
         </div>
         {hasFilters && (

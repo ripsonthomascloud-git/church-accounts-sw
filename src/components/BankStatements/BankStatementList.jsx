@@ -10,6 +10,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [filterDescription, setFilterDescription] = useState('');
+  const [filterAmountType, setFilterAmountType] = useState(''); // '' | 'income' | 'expense'
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [commentValue, setCommentValue] = useState('');
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
@@ -431,10 +432,23 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
       }
     }
 
+    // Filter by income (+) / expense (-)
+    if (filterAmountType === 'income' && (statement.amount || 0) < 0) return false;
+    if (filterAmountType === 'expense' && (statement.amount || 0) >= 0) return false;
+
     return true;
   });
 
+  // Determine which rows to sum: if any checkboxes checked → use those; otherwise → all filtered
+  const hasSelection = selectedStatements.length > 0;
+  const sumSource = hasSelection
+    ? filteredStatements.filter(s => selectedStatements.includes(s.id))
+    : filteredStatements;
+
   const totalAmount = filteredStatements.reduce((sum, s) => sum + (s.amount || 0), 0);
+  const sumIncome  = sumSource.filter(s => (s.amount || 0) >= 0).reduce((sum, s) => sum + (s.amount || 0), 0);
+  const sumExpense = sumSource.filter(s => (s.amount || 0) < 0).reduce((sum, s) => sum + (s.amount || 0), 0);
+  const sumNet     = sumIncome + sumExpense;
 
   return (
     <div className="space-y-4">
@@ -479,7 +493,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
             <input
@@ -510,9 +524,22 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Income / Expense</label>
+            <select
+              value={filterAmountType}
+              onChange={(e) => setFilterAmountType(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">All</option>
+              <option value="income">Income (+)</option>
+              <option value="expense">Expense (−)</option>
+            </select>
+          </div>
         </div>
 
-        {(filterAccountType || filterStatus || filterMonth || filterDateFrom || filterDateTo || filterDescription) && (
+        {(filterAccountType || filterStatus || filterMonth || filterDateFrom || filterDateTo || filterDescription || filterAmountType) && (
           <button
             onClick={() => {
               setFilterAccountType('');
@@ -521,6 +548,7 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
               setFilterDateFrom('');
               setFilterDateTo('');
               setFilterDescription('');
+              setFilterAmountType('');
             }}
             className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
           >
@@ -823,16 +851,36 @@ const BankStatementList = ({ statements, onSelectStatement, selectedStatementId,
           </div>
 
           <div className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-wrap justify-between items-center gap-4">
               <span className="text-sm font-semibold text-gray-700">
-                Showing {filteredStatements.length} of {statements.length} statements
+                {hasSelection
+                  ? `${selectedStatements.length} selected of ${filteredStatements.length} shown`
+                  : `Showing ${filteredStatements.length} of ${statements.length} statements`}
               </span>
-              <div className="text-right">
-                <div className="text-xs text-gray-500">Total Amount</div>
-                <div className={`text-lg font-bold ${
-                  totalAmount < 0 ? 'text-red-600' : 'text-green-600'
-                }`}>
-                  {formatAmount(totalAmount)}
+              <div className="flex gap-6">
+                <div className="text-right">
+                  <div className="text-xs text-gray-500 mb-0.5">
+                    {hasSelection ? 'Selected Income' : 'Total Income'}
+                  </div>
+                  <div className="text-base font-bold text-green-600">
+                    {formatAmount(sumIncome)}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-gray-500 mb-0.5">
+                    {hasSelection ? 'Selected Expense' : 'Total Expense'}
+                  </div>
+                  <div className="text-base font-bold text-red-600">
+                    {formatAmount(Math.abs(sumExpense))}
+                  </div>
+                </div>
+                <div className="text-right border-l border-gray-300 pl-6">
+                  <div className="text-xs text-gray-500 mb-0.5">
+                    {hasSelection ? 'Selected Net' : 'Net'}
+                  </div>
+                  <div className={`text-base font-bold ${sumNet >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                    {formatAmount(sumNet)}
+                  </div>
                 </div>
               </div>
             </div>
