@@ -3,9 +3,12 @@ import { useTransactions } from '../hooks/useTransactions';
 import { useCategories } from '../hooks/useCategories';
 import { useMembers } from '../hooks/useMembers';
 import { usePayees } from '../hooks/usePayees';
+import { useOpeningBalance } from '../hooks/useOpeningBalance';
+import { useBankStatements } from '../hooks/useBankStatements';
 import AddIncome from '../components/Transactions/AddIncome';
 import AddExpense from '../components/Transactions/AddExpense';
 import TransactionList from '../components/Transactions/TransactionList';
+import StatementView from '../components/Transactions/StatementView';
 import Button from '../components/common/Button';
 import Modal from '../components/common/Modal';
 
@@ -15,6 +18,8 @@ const Transactions = () => {
 
   const { members } = useMembers();
   const { payees } = usePayees();
+  const { openingBalances } = useOpeningBalance();
+  const { bankStatements } = useBankStatements();
   const { categories: incomeCategories } = useCategories('income');
   const { categories: expenseCategories } = useCategories('expense');
 
@@ -64,14 +69,17 @@ const Transactions = () => {
   };
 
   const loading = activeTab === 'income' ? incomeLoading : expenseLoading;
+  const isStatementTab = activeTab === 'statement';
 
   return (
     <div className="space-y-4 max-w-[1400px]">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Transactions</h1>
-        <Button onClick={() => setShowAddModal(true)}>
-          Add {activeTab === 'income' ? 'Income' : 'Expense'}
-        </Button>
+        {!isStatementTab && (
+          <Button onClick={() => setShowAddModal(true)}>
+            Add {activeTab === 'income' ? 'Income' : 'Expense'}
+          </Button>
+        )}
       </div>
 
       <div className="border-b border-gray-200">
@@ -96,10 +104,33 @@ const Transactions = () => {
           >
             Expenses
           </button>
+          <button
+            onClick={() => setActiveTab('statement')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'statement'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Statement
+          </button>
         </nav>
       </div>
 
-      {loading ? (
+      {isStatementTab ? (
+        (incomeLoading || expenseLoading) ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-xl text-gray-600">Loading transactions...</div>
+          </div>
+        ) : (
+          <StatementView
+            incomeTransactions={incomeTransactions}
+            expenseTransactions={expenseTransactions}
+            openingBalances={openingBalances}
+            bankStatements={bankStatements}
+          />
+        )
+      ) : loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="text-xl text-gray-600">Loading transactions...</div>
         </div>
