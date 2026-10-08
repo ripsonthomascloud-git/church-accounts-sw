@@ -117,46 +117,58 @@ const Transactions = () => {
         </nav>
       </div>
 
-      {isStatementTab ? (
-        (incomeLoading || expenseLoading) ? (
+      {/* Income tab — always mounted to preserve TransactionList filter state */}
+      <div className={activeTab === 'income' ? '' : 'hidden'}>
+        {incomeLoading ? (
           <div className="flex justify-center items-center h-64">
             <div className="text-xl text-gray-600">Loading transactions...</div>
           </div>
         ) : (
-          <StatementView
-            incomeTransactions={incomeTransactions}
-            expenseTransactions={expenseTransactions}
-            openingBalances={openingBalances}
-            bankStatements={bankStatements}
+          <TransactionList
+            transactions={incomeTransactions}
+            onDelete={deleteIncome}
+            onEdit={updateIncome}
+            type="income"
+            members={members}
+            categories={incomeCategories}
           />
-        )
-      ) : loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="text-xl text-gray-600">Loading transactions...</div>
-        </div>
-      ) : (
-        <div>
-          {activeTab === 'income' ? (
-            <TransactionList
-              transactions={incomeTransactions}
-              onDelete={deleteIncome}
-              onEdit={updateIncome}
-              type="income"
-              members={members}
-              categories={incomeCategories}
-            />
-          ) : (
-            <TransactionList
-              transactions={expenseTransactions}
-              onDelete={deleteExpense}
-              onEdit={updateExpense}
-              type="expense"
-              members={members}
-              categories={expenseCategories}
-            />
-          )}
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Expense tab — always mounted to preserve TransactionList filter state */}
+      <div className={activeTab === 'expense' ? '' : 'hidden'}>
+        {expenseLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-xl text-gray-600">Loading transactions...</div>
+          </div>
+        ) : (
+          <TransactionList
+            transactions={expenseTransactions}
+            onDelete={deleteExpense}
+            onEdit={updateExpense}
+            type="expense"
+            members={members}
+            categories={expenseCategories}
+          />
+        )}
+      </div>
+
+      {/* Statement tab — always mounted so filters survive tab switches and refresh.
+          StatementView stays mounted even while data is refreshing so filter state is never lost. */}
+      <div className={activeTab === 'statement' ? '' : 'hidden'}>
+        <StatementView
+          incomeTransactions={incomeTransactions}
+          expenseTransactions={expenseTransactions}
+          openingBalances={openingBalances}
+          bankStatements={bankStatements}
+          onRefresh={async () => { await Promise.all([refreshIncome(), refreshExpenses()]); }}
+          isLoading={incomeLoading || expenseLoading}
+          onUpdateTransaction={async (row, data) => {
+            if (row.txType === 'income') await updateIncome(row.id, { ...row, date: row.date?.toDate ? row.date.toDate().toISOString().split('T')[0] : row.date, ...data });
+            else await updateExpense(row.id, { ...row, date: row.date?.toDate ? row.date.toDate().toISOString().split('T')[0] : row.date, ...data });
+          }}
+        />
+      </div>
 
       <Modal
         isOpen={showAddModal}

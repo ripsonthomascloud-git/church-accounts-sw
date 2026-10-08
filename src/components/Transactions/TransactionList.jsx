@@ -14,6 +14,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
   const [filterEndDate, setFilterEndDate] = useState('');
   const [filterSubCategory, setFilterSubCategory] = useState('');
   const [filterReconciled, setFilterReconciled] = useState('');
+  const [filterDescription, setFilterDescription] = useState('');
   const [filterAccountType, setFilterAccountType] = useState(() => {
     return localStorage.getItem('transactionList_filterAccountType') || '';
   });
@@ -140,6 +141,14 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
     // Filter by subcategory
     if (filterSubCategory && transaction.subCategory !== filterSubCategory) {
       return false;
+    }
+
+    // Filter by description (case-insensitive, whitespace-normalized)
+    if (filterDescription.trim()) {
+      const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (!norm(transaction.description).includes(norm(filterDescription))) {
+        return false;
+      }
     }
 
     return true;
@@ -355,7 +364,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-9 gap-2">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Account Type</label>
             <select
@@ -452,9 +461,20 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               <option value="unreconciled">Unreconciled</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
+            <input
+              type="text"
+              value={filterDescription}
+              onChange={(e) => setFilterDescription(e.target.value)}
+              placeholder="Search description..."
+              className="w-full px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+          </div>
         </div>
 
-        {(filterAccountType || filterCategory || filterSubCategory || filterMember || filterMonth || filterStartDate || filterEndDate || filterReconciled) && (
+        {(filterAccountType || filterCategory || filterSubCategory || filterMember || filterMonth || filterStartDate || filterEndDate || filterReconciled || filterDescription.trim()) && (
           <button
             onClick={() => {
               setFilterAccountType('');
@@ -465,6 +485,7 @@ const TransactionList = ({ transactions, onDelete, onEdit, type = 'income', memb
               setFilterStartDate('');
               setFilterEndDate('');
               setFilterReconciled('');
+              setFilterDescription('');
             }}
             className="mt-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
           >

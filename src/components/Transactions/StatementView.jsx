@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { updateDocument } from '../../services/firebase';
 
-const StatementView = ({ incomeTransactions = [], expenseTransactions = [], openingBalances = [], bankStatements = [] }) => {
+const StatementView = ({ incomeTransactions = [], expenseTransactions = [], openingBalances = [], bankStatements = [], onRefresh, isLoading = false, onUpdateTransaction }) => {
   const [filterAccountType, setFilterAccountType] = useState('Operating');
   const [filterMonth, setFilterMonth] = useState('');
   const [filterStartDate, setFilterStartDate] = useState('');
@@ -17,6 +18,21 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
   const [viewMode, setViewMode] = useState('running');
   // Checkbox selection: Set of row keys ("txType-id")
   const [selectedKeys, setSelectedKeys] = useState(null); // null = all selected
+  const [refreshing, setRefreshing] = useState(false);
+  const [overridePopover, setOverridePopover] = useState(null); // { rowId, value } — which row's popover is open
+  const [savingOverride, setSavingOverride] = useState(null); // rowId being saved
+  const [bulkReconciling, setBulkReconciling] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null); // { reconciled, skipped } after run
+
+  // Close override popover on outside click
+  useEffect(() => {
+    if (!overridePopover) return;
+    const handler = (e) => {
+      if (!e.target.closest('[data-override-popover]')) setOverridePopover(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [overridePopover]);
 
   const formatAmount = (amount) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -129,7 +145,7 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
 
   // Count how many bank statement entries exist per key (date_absAmt_acct)
   const bankStatementLookup = useMemo(() => {
-    const map = new Map();
+    const map = new Map(); // key → count
     bankStatements.forEach(stmt => {
       const d = getDateObj(stmt.postingDate);
       if (!d) return;
@@ -142,11 +158,31 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
     return map;
   }, [bankStatements]);
 
-  // Build the set of transaction IDs that have a bank match, consuming counts so
-  // only as many transactions match as there are bank statement entries (no over-matching).
-  const matchedTxIds = useMemo(() => {
+  // key → array of bank statement objects (sorted: importTimestamp desc, importOrder asc)
+  // Used to find which bank statement corresponds to each matched transaction
+  const bankStatementsByKey = useMemo(() => {
+    const map = new Map();
+    const sorted = [...bankStatements].sort((a, b) => {
+      const tsCompare = (b.importTimestamp || 0) - (a.importTimestamp || 0);
+      if (tsCompare !== 0) return tsCompare;
+      return (a.importOrder || 0) - (b.importOrder || 0);
+    });
+    sorted.forEach(stmt => {
+      const key = makeLookupKey(stmt.postingDate, stmt.amount, stmt.accountType);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(stmt);
+    });
+    return map;
+  }, [bankStatements]);
+
+  // Build matched tx set AND a map of txId → bankStatement for bulk reconciliation
+  const { matchedTxIds, matchedTxToBankStmt } = useMemo(() => {
     const counts = new Map(bankStatementLookup);
+    // Track which index into bankStatementsByKey array each key has consumed
+    const consumed = new Map();
     const matched = new Set();
+    const txToStmt = new Map(); // txId → bankStatement object
+
     // Transactions with "/" in description are split/transfer entries — exclude from bank matching
     allRows.forEach(row => {
       if ((row.description || '').includes('/')) return;
@@ -155,12 +191,22 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
       if (available > 0) {
         matched.add(row.id);
         counts.set(key, available - 1);
+        // Assign the next available bank statement for this key
+        const stmts = bankStatementsByKey.get(key) || [];
+        const idx = consumed.get(key) || 0;
+        if (stmts[idx]) txToStmt.set(row.id, stmts[idx]);
+        consumed.set(key, idx + 1);
       }
     });
-    return matched;
-  }, [allRows, bankStatementLookup]);
+    return { matchedTxIds: matched, matchedTxToBankStmt: txToStmt };
+  }, [allRows, bankStatementLookup, bankStatementsByKey]);
 
-  const hasBankMatch = (row) => matchedTxIds.has(row.id);
+  // Override takes priority over auto-match; null = use auto result
+  const hasBankMatch = (row) => {
+    if (row.bankMatchOverride === 'matched') return true;
+    if (row.bankMatchOverride === 'unmatched') return false;
+    return matchedTxIds.has(row.id);
+  };
 
   // Bank-only rows: bank statements with no matching transaction (count-aware).
   // If 4 transactions share key X but only 3 bank entries exist, 1 bank entry is unmatched.
@@ -467,6 +513,51 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
     }
   };
 
+  // Rows eligible for bulk reconcile: selected, not bank-only, auto/override-matched, not already reconciled
+  const reconcilableRows = useMemo(() => {
+    const sourceRows = isAllSelected
+      ? runningRows.filter(r => !r.isBankOnly)
+      : runningRows.filter(r => !r.isBankOnly && visibleSelectedKeys.has(rowKey(r)));
+    return sourceRows.filter(r => hasBankMatch(r) && !r.isReconciled);
+  }, [runningRows, isAllSelected, visibleSelectedKeys, matchedTxIds]); // eslint-disable-line
+
+  const handleBulkReconcile = async () => {
+    if (!reconcilableRows.length) return;
+    setBulkReconciling(true);
+    setBulkResult(null);
+    let reconciled = 0;
+    let skipped = 0;
+    try {
+      for (const row of reconcilableRows) {
+        const stmt = matchedTxToBankStmt.get(row.id);
+        if (!stmt || stmt.isReconciled) { skipped++; continue; }
+        const txCollection = row.txType === 'income' ? 'income' : 'expenses';
+        // Update bank statement
+        await updateDocument('bankStatements', stmt.id, {
+          isReconciled: true,
+          reconciledTransactionIds: [row.id],
+          reconciledTransactions: [{ id: row.id, type: txCollection, collection: txCollection, amount: row.amount }],
+          reconciledDate: new Date(),
+          reconciledTransactionId: row.id,
+          reconciledTransactionType: txCollection,
+        });
+        // Update transaction
+        await updateDocument(txCollection, row.id, {
+          reconciledBankStatementId: stmt.id,
+          reconciledDate: new Date(),
+          isReconciled: true,
+        });
+        reconciled++;
+      }
+      setBulkResult({ reconciled, skipped });
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      setBulkResult({ error: err.message });
+    } finally {
+      setBulkReconciling(false);
+    }
+  };
+
   // Sum for footer: if all selected → sum all runningRows; else → sum visibleSelectedKeys only
   // Includes bank-only rows (credit = income side, debit = expense side)
   const sumRows = isAllSelected
@@ -581,6 +672,45 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-sm font-semibold text-gray-700">Filters</h3>
           <div className="flex items-center gap-2">
+            {/* Bulk Reconcile button — visible when there are reconcilable rows */}
+            {reconcilableRows.length > 0 && (
+              <button
+                onClick={handleBulkReconcile}
+                disabled={bulkReconciling}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                title={`Mark ${reconcilableRows.length} matched transaction${reconcilableRows.length > 1 ? 's' : ''} as reconciled in Bank Statements`}
+              >
+                <svg className={`w-3.5 h-3.5 ${bulkReconciling ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  {bulkReconciling
+                    ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  }
+                </svg>
+                {bulkReconciling ? 'Reconciling…' : `Reconcile ${reconcilableRows.length}`}
+              </button>
+            )}
+            {/* Result toast */}
+            {bulkResult && !bulkReconciling && (
+              <span className={`text-xs font-medium px-2 py-1 rounded ${bulkResult.error ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                {bulkResult.error ? `Error: ${bulkResult.error}` : `✓ ${bulkResult.reconciled} reconciled${bulkResult.skipped ? `, ${bulkResult.skipped} skipped` : ''}`}
+              </span>
+            )}
+            {onRefresh && (
+              <button
+                onClick={async () => {
+                  setRefreshing(true);
+                  try { await onRefresh(); } finally { setRefreshing(false); }
+                }}
+                disabled={refreshing || isLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-md transition-colors disabled:opacity-50"
+                title="Refresh data without losing filters"
+              >
+                <svg className={`w-3.5 h-3.5 ${(refreshing || isLoading) ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {(refreshing || isLoading) ? 'Refreshing…' : 'Refresh'}
+              </button>
+            )}
             <button
               onClick={handleExportCSV}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md transition-colors"
@@ -855,17 +985,83 @@ const StatementView = ({ incomeTransactions = [], expenseTransactions = [], open
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-center">
+                          <td className="px-3 py-2 text-center relative">
                             {isBankOnly ? (
                               <span className="text-gray-300 text-xs">—</span>
-                            ) : hasBankMatch(row) ? (
-                              <span title="Matched in Bank Statements" className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-700">
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </span>
                             ) : (
-                              <span className="text-gray-300 text-xs">—</span>
+                              <div className="inline-block relative">
+                                <button
+                                  onClick={() => onUpdateTransaction && setOverridePopover(
+                                    overridePopover?.rowId === row.id ? null : { rowId: row.id, value: row.bankMatchOverride || '' }
+                                  )}
+                                  title={row.bankMatchOverride ? `Override: ${row.bankMatchOverride}` : 'Click to override match'}
+                                  className={`inline-flex items-center justify-center w-5 h-5 rounded-full transition-colors ${
+                                    row.bankMatchOverride === 'matched' ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-400' :
+                                    row.bankMatchOverride === 'unmatched' ? 'bg-red-100 text-red-500 ring-2 ring-red-400' :
+                                    hasBankMatch(row) ? 'bg-green-100 text-green-700 hover:ring-2 hover:ring-gray-300' :
+                                    'bg-gray-100 text-gray-400 hover:ring-2 hover:ring-gray-300'
+                                  } ${onUpdateTransaction ? 'cursor-pointer' : 'cursor-default'}`}
+                                >
+                                  {hasBankMatch(row) ? (
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  ) : (
+                                    <span className="text-xs leading-none">—</span>
+                                  )}
+                                </button>
+
+                                {/* Override popover */}
+                                {overridePopover?.rowId === row.id && (
+                                  <div data-override-popover className="absolute z-50 top-7 left-1/2 -translate-x-1/2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-44">
+                                    <p className="text-xs font-semibold text-gray-700 mb-2">Override Match</p>
+                                    <div className="flex flex-col gap-1.5 mb-2">
+                                      {[
+                                        { val: '', label: 'Auto (default)' },
+                                        { val: 'matched', label: '✓ Matched' },
+                                        { val: 'unmatched', label: '— Unmatched' },
+                                      ].map(opt => (
+                                        <label key={opt.val} className="flex items-center gap-2 text-xs cursor-pointer">
+                                          <input
+                                            type="radio"
+                                            name={`override-${row.id}`}
+                                            value={opt.val}
+                                            checked={overridePopover.value === opt.val}
+                                            onChange={() => setOverridePopover(p => ({ ...p, value: opt.val }))}
+                                            className="accent-blue-600"
+                                          />
+                                          {opt.label}
+                                        </label>
+                                      ))}
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        disabled={savingOverride === row.id}
+                                        onClick={async () => {
+                                          setSavingOverride(row.id);
+                                          try {
+                                            await onUpdateTransaction(row, {
+                                              bankMatchOverride: overridePopover.value || null,
+                                            });
+                                          } finally {
+                                            setSavingOverride(null);
+                                            setOverridePopover(null);
+                                          }
+                                        }}
+                                        className="flex-1 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-50"
+                                      >
+                                        {savingOverride === row.id ? 'Saving…' : 'Save'}
+                                      </button>
+                                      <button
+                                        onClick={() => setOverridePopover(null)}
+                                        className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </td>
                           <td className="px-3 py-2 text-center">
